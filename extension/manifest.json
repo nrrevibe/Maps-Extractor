@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "NR Revibe - Google Maps Lead Extractor",
+  "version": "1.0.0",
+  "description": "Extract local business leads from Google Maps, analyze websites, calculate lead scores, and sync to Google Sheets CRM.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "NR Rvibe Lead Extractor"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://*.google.com/*",
+    "https://maps.googleapis.com/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.google.com/maps/*",
+        "https://www.google.com/maps/*",
+        "https://*.google.co.in/maps/*",
+        "https://www.google.co.in/maps/*",
+        "https://*.google.co.uk/maps/*",
+        "https://www.google.co.uk/maps/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    },
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "content-localhost.js"
+      ]
+    }
+  ]
+}
