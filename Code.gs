@@ -160,14 +160,50 @@ function getLeadsFromDatabase() {
   const headers = rawLeadsTab.getRange(1, 1, 1, rawLeadsTab.getLastColumn()).getValues()[0];
   const data = rawLeadsTab.getRange(2, 1, lastRow - 1, rawLeadsTab.getLastColumn()).getValues();
 
+  // ── Load Active_Leads for status/notes/follow-up overrides ──────────────────
+  // Build a map keyed by raw_id so we can merge mutable fields back in
+  const activeOverrides = {};
+  try {
+    const leadSpreadsheet = getLeadSpreadsheet();
+    if (leadSpreadsheet) {
+      const activeTab = leadSpreadsheet.getSheetByName('Active_Leads');
+      if (activeTab && activeTab.getLastRow() > 1) {
+        const aHeaders = activeTab.getRange(1, 1, 1, activeTab.getLastColumn()).getValues()[0];
+        const aData = activeTab.getRange(2, 1, activeTab.getLastRow() - 1, activeTab.getLastColumn()).getValues();
+        const rawIdCol = aHeaders.indexOf('raw_id');
+        const leadStatusCol = aHeaders.indexOf('lead_status');
+        const emailStatusCol = aHeaders.indexOf('email_status');
+        const notesCol = aHeaders.indexOf('notes');
+        const followUpCol = aHeaders.indexOf('follow_up_date');
+        aData.forEach(row => {
+          const rawId = rawIdCol >= 0 ? row[rawIdCol] : '';
+          if (rawId) {
+            activeOverrides[rawId.toString()] = {
+              leadStatus: leadStatusCol >= 0 ? row[leadStatusCol] : '',
+              emailStatus: emailStatusCol >= 0 ? row[emailStatusCol] : '',
+              notes: notesCol >= 0 ? row[notesCol] : '',
+              followUpDate: followUpCol >= 0 ? row[followUpCol] : '',
+            };
+          }
+        });
+      }
+    }
+  } catch(e) {
+    Logger.log('Could not load Active_Leads overrides: ' + e.toString());
+  }
+
   const leads = data.map(row => {
     const lead = {};
     headers.forEach((header, index) => {
       lead[header] = row[index];
     });
 
+    const rawId = lead.raw_id || ('MAPS-' + Math.floor(1000 + Math.random() * 9000));
+    // Merge mutable fields from Active_Leads if they exist
+    const overrides = activeOverrides[rawId.toString()] || {};
+
     return {
-      id: lead.raw_id || ('MAPS-' + Math.floor(1000 + Math.random() * 9000)),
+      id: rawId,
       businessName: lead.business_name || '',
       category: lead.category || '',
       googleMapsUrl: lead.maps_url || '',
@@ -201,10 +237,11 @@ function getLeadsFromDatabase() {
       opportunityType: lead.opportunity_type || (lead.website_url ? 'Social Media' : 'Website'),
       painPoint: lead.pain_point || (lead.website_url ? 'Mobile responsiveness refresh' : 'No website presence discovered'),
       suggestedService: lead.suggested_service || (lead.website_url ? 'Website Redesign & SEO' : 'New Website Development'),
-      leadStatus: lead.lead_status || 'New',
-      emailStatus: lead.email_status || 'Not Sent',
-      notes: lead.notes || '',
-      followUpDate: lead.follow_up_date || '',
+      // ── Mutable fields — prefer Active_Leads values if present ────────────
+      leadStatus: overrides.leadStatus || lead.lead_status || 'New',
+      emailStatus: overrides.emailStatus || lead.email_status || 'Not Sent',
+      notes: overrides.notes !== undefined && overrides.notes !== '' ? overrides.notes : (lead.notes || ''),
+      followUpDate: overrides.followUpDate || lead.follow_up_date || '',
       collectedDate: lead.timestamp ? new Date(lead.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       collectedBy: 'NR Rvibe Maps Extractor'
     };
