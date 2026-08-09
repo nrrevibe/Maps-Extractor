@@ -3,8 +3,6 @@ import { GoogleGenAI } from '@google/genai';
 import nodemailer from 'nodemailer';
 
 const app = express();
-app.use(express.json());
-
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use((req: any, res: any, next: any) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -13,6 +11,9 @@ app.use((req: any, res: any, next: any) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
   next();
 });
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // ── Inline Lead Scoring (mirrors src/utils/scoring.ts) ───────────────────────
 function calculateLeadScore(lead: any) {
