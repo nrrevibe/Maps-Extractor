@@ -17,6 +17,7 @@
     "<all_urls>",
     "https://*.google.com/*",
     "https://maps.googleapis.com/*",
+    "https://maps-extractor.vercel.app/*",
     "http://localhost/*"
   ],
   "background": {
@@ -38,6 +39,7 @@
     },
     {
       "matches": [
+        "https://maps-extractor.vercel.app/*",
         "http://localhost/*",
         "http://127.0.0.1/*"
       ],

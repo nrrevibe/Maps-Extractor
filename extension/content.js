@@ -379,7 +379,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
       } catch (e) { console.error('Sheets sync error:', e); }
       try {
-        await fetch('http://localhost:8081/api/leads', {
+        await fetch('https://maps-extractor.vercel.app/api/leads', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ leads })
         });

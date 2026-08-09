@@ -52,7 +52,7 @@ saveSettingsBtn.addEventListener('click', async () => {
 });
 
 openCrmBtn.addEventListener('click', () => {
-  chrome.tabs.create({ url: 'http://localhost:5173' });
+  chrome.tabs.create({ url: 'https://maps-extractor.vercel.app' });
 });
 
 clearCacheBtn.addEventListener('click', async () => {
@@ -248,7 +248,7 @@ syncStoppedBtn.addEventListener('click', async () => {
 
       // 2. Sync to local React CRM Dashboard
       try {
-        await fetch('http://localhost:8081/api/leads', {
+        await fetch('https://maps-extractor.vercel.app/api/leads', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ leads: leads })

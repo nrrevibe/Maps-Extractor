@@ -693,12 +693,37 @@ function updateRowInTab(tab, lead) {
   const targetRow = idMap.get(lead.id?.toString()) || idMap.get(lead.raw_id?.toString());
   
   if (targetRow) {
-    if (lead.leadStatus) tab.getRange(targetRow, ensureCol('lead_status')).setValue(lead.leadStatus);
-    if (lead.emailStatus) tab.getRange(targetRow, ensureCol('email_status')).setValue(lead.emailStatus);
-    if (lead.leadPriority) tab.getRange(targetRow, ensureCol('lead_priority')).setValue(lead.leadPriority);
-    if (lead.aiAnalysis) tab.getRange(targetRow, ensureCol('ai_analysis')).setValue(lead.aiAnalysis);
-    if (lead.notes !== undefined) tab.getRange(targetRow, ensureCol('notes')).setValue(lead.notes);
-    if (lead.followUpDate !== undefined) tab.getRange(targetRow, ensureCol('follow_up_date')).setValue(lead.followUpDate);
+    const fieldMapping = {
+      'leadStatus': 'lead_status',
+      'emailStatus': 'email_status',
+      'leadPriority': 'lead_priority',
+      'aiAnalysis': 'ai_analysis',
+      'notes': 'notes',
+      'followUpDate': 'follow_up_date',
+      'businessName': 'business_name',
+      'category': 'category',
+      'websiteUrl': 'website_url',
+      'phone': 'phone',
+      'email': 'email',
+      'address': 'address',
+      'city': 'city',
+      'state': 'state',
+      'country': 'country',
+      'opportunityType': 'opportunity_type',
+      'painPoint': 'pain_point',
+      'suggestedService': 'suggested_service',
+      'instagramUrl': 'instagram_url',
+      'facebookUrl': 'facebook_url',
+      'twitterUrl': 'twitter_url',
+      'linkedinUrl': 'linkedin_url',
+      'leadScore': 'lead_score'
+    };
+
+    for (const [prop, col] of Object.entries(fieldMapping)) {
+      if (lead[prop] !== undefined) {
+        tab.getRange(targetRow, ensureCol(col)).setValue(lead[prop]);
+      }
+    }
   }
 }
 
