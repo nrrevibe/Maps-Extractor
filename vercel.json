@@ -1,3 +1,29 @@
 {
-  "version": 2
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/[...path].ts",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["src/utils/scoring.ts", "src/types.ts"]
+      }
+    },
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/[...path].ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }
