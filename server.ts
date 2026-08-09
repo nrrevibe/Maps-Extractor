@@ -335,4 +335,9 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only start the server locally, not when deployed as a serverless function on Vercel
+if (process.env.VERCEL !== '1') {
+  startServer();
+}
+
+export default app;
