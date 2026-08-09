@@ -79,7 +79,7 @@ function calculateLeadScore(lead: any) {
 const API_KEY = 'nr-revibe-secure-key-2026';
 
 // ── GET /api/leads ─────────────────────────────────────────────────────────────
-app.get('/api/leads', async (req: any, res: any) => {
+app.get(['/api/leads', '/leads'], async (req: any, res: any) => {
   const { scriptUrl } = req.query;
   if (!scriptUrl || typeof scriptUrl !== 'string') return res.json({ success: true, leads: [] });
   try {
@@ -92,7 +92,7 @@ app.get('/api/leads', async (req: any, res: any) => {
 });
 
 // ── POST /api/leads ────────────────────────────────────────────────────────────
-app.post('/api/leads', async (req: any, res: any) => {
+app.post(['/api/leads', '/leads'], async (req: any, res: any) => {
   const { leads } = req.body;
   const { scriptUrl } = req.query;
   if (!leads || !Array.isArray(leads)) return res.status(400).json({ success: false, error: 'Invalid leads array' });
@@ -111,7 +111,7 @@ app.post('/api/leads', async (req: any, res: any) => {
 });
 
 // ── PUT /api/leads/:id ─────────────────────────────────────────────────────────
-app.put('/api/leads/:id', async (req: any, res: any) => {
+app.put(['/api/leads/:id', '/leads/:id'], async (req: any, res: any) => {
   const { id } = req.params;
   const { lead } = req.body;
   const { scriptUrl } = req.query;
@@ -127,7 +127,7 @@ app.put('/api/leads/:id', async (req: any, res: any) => {
 });
 
 // ── DELETE /api/leads/:id ──────────────────────────────────────────────────────
-app.delete('/api/leads/:id', async (req: any, res: any) => {
+app.delete(['/api/leads/:id', '/leads/:id'], async (req: any, res: any) => {
   const { id } = req.params;
   const { scriptUrl } = req.query;
   if (scriptUrl && typeof scriptUrl === 'string') {
@@ -139,7 +139,7 @@ app.delete('/api/leads/:id', async (req: any, res: any) => {
 });
 
 // ── GET /api/settings ──────────────────────────────────────────────────────────
-app.get('/api/settings', async (req: any, res: any) => {
+app.get(['/api/settings', '/settings'], async (req: any, res: any) => {
   const { scriptUrl } = req.query;
   if (!scriptUrl || typeof scriptUrl !== 'string') return res.json({ success: true, settings: {} });
   try {
@@ -150,7 +150,7 @@ app.get('/api/settings', async (req: any, res: any) => {
 });
 
 // ── POST /api/settings ─────────────────────────────────────────────────────────
-app.post('/api/settings', async (req: any, res: any) => {
+app.post(['/api/settings', '/settings'], async (req: any, res: any) => {
   const { settings } = req.body;
   const { scriptUrl } = req.query;
   if (scriptUrl && typeof scriptUrl === 'string') {
@@ -164,7 +164,7 @@ app.post('/api/settings', async (req: any, res: any) => {
 });
 
 // ── POST /api/send-email ───────────────────────────────────────────────────────
-app.post('/api/send-email', async (req: any, res: any) => {
+app.post(['/api/send-email', '/send-email'], async (req: any, res: any) => {
   const { to, subject, body, smtpSettings = {} } = req.body;
   if (!to || !subject || !body) return res.status(400).json({ success: false, error: 'Missing required parameters (to, subject, body)' });
 
@@ -183,12 +183,12 @@ app.post('/api/send-email', async (req: any, res: any) => {
 });
 
 // ── GET /api/health ────────────────────────────────────────────────────────────
-app.get('/api/health', (_req: any, res: any) => {
+app.get(['/api/health', '/health'], (_req: any, res: any) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // ── POST /api/ai-recommendation ────────────────────────────────────────────────
-app.post('/api/ai-recommendation', async (req: any, res: any) => {
+app.post(['/api/ai-recommendation', '/ai-recommendation'], async (req: any, res: any) => {
   try {
     const { lead, agencyName = 'NR Revibe' } = req.body;
     if (!lead) return res.status(400).json({ error: 'Lead object is required' });
