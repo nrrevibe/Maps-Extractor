@@ -45,7 +45,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const [pageSpeedError, setPageSpeedError] = useState<string | null>(null);
   const [outreachType, setOutreachType] = useState<'Email' | 'WhatsApp'>('Email');
   const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_EMAIL_TEMPLATES[0].id);
-  const [editedNotes, setEditedNotes] = useState(lead.notes || '');
+  const [editedNotes, setEditedNotes] = useState(typeof lead.notes === 'string' ? lead.notes : '');
   const [editedFollowUp, setEditedFollowUp] = useState(lead.followUpDate || '');
   const [copied, setCopied] = useState(false);
 

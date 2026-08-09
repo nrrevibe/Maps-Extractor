@@ -515,7 +515,7 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
       websiteUrl: '',
       rating: 4.5,
       reviewCount: 85,
-      notes: 'Manually added custom client prospect.',
+      notes: '',
     });
   };
 

@@ -240,8 +240,8 @@ function getLeadsFromDatabase() {
       // ── Mutable fields — prefer Active_Leads values if present ────────────
       leadStatus: overrides.leadStatus || lead.lead_status || 'New',
       emailStatus: overrides.emailStatus || lead.email_status || 'Not Sent',
-      notes: overrides.notes !== undefined && overrides.notes !== '' ? overrides.notes : (lead.notes || ''),
-      followUpDate: overrides.followUpDate || lead.follow_up_date || '',
+      notes: typeof overrides.notes === 'string' && overrides.notes !== '' ? overrides.notes : (typeof lead.notes === 'string' ? lead.notes : ''),
+      followUpDate: (overrides.followUpDate ? overrides.followUpDate.toString() : '') || (lead.follow_up_date ? lead.follow_up_date.toString() : ''),
       collectedDate: lead.timestamp ? new Date(lead.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       collectedBy: 'NR Rvibe Maps Extractor'
     };
