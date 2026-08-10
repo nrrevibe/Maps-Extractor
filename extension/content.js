@@ -589,13 +589,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                          phoneCount, websiteCount, socialCount);
       try {
         await fetch(googleAppsScriptUrl, {
-          method: 'POST', mode: 'no-cors',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'sync_leads', apiKey: 'nr-revibe-secure-key-2026', leads })
         });
       } catch (e) { console.error('Sheets sync error:', e); }
       try {
-        await fetch('https://maps-extractor.vercel.app/api/leads', {
+        await fetch(`https://maps-extractor.vercel.app/api/leads?scriptUrl=${encodeURIComponent(googleAppsScriptUrl)}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ leads })
         });

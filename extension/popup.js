@@ -237,7 +237,6 @@ syncStoppedBtn.addEventListener('click', async () => {
       // 1. Sync to Google Sheets
       await fetch(dynamicWebAppUrl, {
         method: 'POST',
-        mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'sync_leads',
@@ -248,7 +247,7 @@ syncStoppedBtn.addEventListener('click', async () => {
 
       // 2. Sync to local React CRM Dashboard
       try {
-        await fetch('https://maps-extractor.vercel.app/api/leads', {
+        await fetch(`https://maps-extractor.vercel.app/api/leads?scriptUrl=${encodeURIComponent(dynamicWebAppUrl)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ leads: leads })
