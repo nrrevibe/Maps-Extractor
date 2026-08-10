@@ -80,12 +80,18 @@ app.post('/api/leads', async (req, res) => {
 
   if (scriptUrl && typeof scriptUrl === 'string') {
     try {
-      await fetch(scriptUrl, {
+      console.log('Sending leads to Google Apps Script URL:', scriptUrl);
+      const resData = await fetch(scriptUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'sync_leads', apiKey: 'nr-revibe-secure-key-2026', leads: processed })
       });
-    } catch(e) {}
+      const text = await resData.text();
+      console.log('Google Apps Script Response Status:', resData.status);
+      console.log('Google Apps Script Response Text:', text);
+    } catch(e: any) {
+      console.error('Failed to sync to Google Apps Script:', e.message);
+    }
   }
 
   res.json({ success: true, count: processed.length, leads: processed });

@@ -237,7 +237,7 @@ syncStoppedBtn.addEventListener('click', async () => {
       // 1. Sync to Google Sheets
       await fetch(dynamicWebAppUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'sync_leads',
           apiKey: 'nr-revibe-secure-key-2026',
@@ -247,7 +247,7 @@ syncStoppedBtn.addEventListener('click', async () => {
 
       // 2. Sync to local React CRM Dashboard
       try {
-        await fetch(`https://maps-extractor.vercel.app/api/leads?scriptUrl=${encodeURIComponent(dynamicWebAppUrl)}`, {
+        await fetch(`http://localhost:8081/api/leads?scriptUrl=${encodeURIComponent(dynamicWebAppUrl)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ leads: leads })

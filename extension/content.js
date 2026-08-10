@@ -588,18 +588,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                          'Uploading to Sheets & CRM...', leads.length,
                          phoneCount, websiteCount, socialCount);
       try {
-        await fetch(googleAppsScriptUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'sync_leads', apiKey: 'nr-revibe-secure-key-2026', leads })
+        await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({
+            action: 'SYNC_LEADS',
+            googleAppsScriptUrl: googleAppsScriptUrl,
+            leads: leads
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('Background sync failed:', chrome.runtime.lastError);
+              resolve(); // Continue even if background connection drops
+            } else {
+              resolve();
+            }
+          });
         });
-      } catch (e) { console.error('Sheets sync error:', e); }
-      try {
-        await fetch(`https://maps-extractor.vercel.app/api/leads?scriptUrl=${encodeURIComponent(googleAppsScriptUrl)}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ leads })
-        });
-      } catch (e) { console.log('Local CRM sync skipped:', e.message); }
+      } catch (e) { console.error('Failed to send SYNC_LEADS message:', e); }
       await updateStatus('completed', totalProcess, totalProcess,
                          `Done! ${leads.length} leads synced`, leads.length,
                          phoneCount, websiteCount, socialCount);

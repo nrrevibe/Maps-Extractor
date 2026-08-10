@@ -21,6 +21,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Keep port open for async response
   }
   
+  if (request.action === 'SYNC_LEADS') {
+    console.log('Background Syncing Leads...');
+    
+    // Use the local server as a proxy to bypass Chrome's strict Apps Script blocking
+    fetch(`http://localhost:8081/api/leads?scriptUrl=${encodeURIComponent(request.googleAppsScriptUrl)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leads: request.leads })
+    })
+    .then(r => r.json())
+    .then(data => console.log('Local server response:', data))
+    .catch(e => console.error('Background Sync Error (Localhost proxy):', e));
+
+    sendResponse({ success: true });
+    return true;
+  }
+  
   if (request.action === 'OPEN_WHATSAPP_TAB') {
     const autoSendWhatsApp = () => {
       let attempts = 0;
