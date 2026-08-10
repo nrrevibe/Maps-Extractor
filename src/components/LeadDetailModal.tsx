@@ -430,6 +430,16 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     <span className="text-slate-400">None</span>
                   )}
                 </div>
+                {lead.googleMapsUrl && (
+                  <div className="flex items-center space-x-2 text-slate-700 font-medium">
+                    <MapPin className="w-4 h-4 text-emerald-600" />
+                    <span>Google Maps: </span>
+                    <a href={lead.googleMapsUrl} target="_blank" rel="noreferrer" className="text-emerald-600 underline font-semibold flex items-center space-x-1">
+                      <span className="truncate max-w-[200px]">View on Google Maps</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
 

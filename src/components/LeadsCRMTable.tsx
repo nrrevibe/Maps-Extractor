@@ -31,7 +31,8 @@ import {
   ArrowDown,
   StickyNote,
   MessageCircle,
-  Instagram
+  Instagram,
+  MapPin as MapPinIcon
 } from 'lucide-react';
 import { Lead, LeadStatus, EmailStatus, LeadPriority } from '../types';
 import { calculateLeadScore } from '../utils/scoring';
@@ -1168,6 +1169,17 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
                       {/* Actions */}
                       <td className="py-3 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end space-x-1">
+                          {lead.googleMapsUrl && (
+                            <a
+                              href={lead.googleMapsUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-200"
+                              title="Open in Google Maps"
+                            >
+                              <MapPinIcon className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                           <button
                             onClick={() => onSelectLeadForModal(lead)}
                             className="p-1.5 bg-slate-100 hover:bg-slate-200 text-indigo-600 rounded-lg transition-colors"

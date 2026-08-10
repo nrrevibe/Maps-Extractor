@@ -55,15 +55,130 @@ function extractSocialLinks(scope) {
   return { instagram, facebook, twitter, linkedin, youtube };
 }
 
+// ── Extract emails from raw HTML ──────────────────────────────────────────────
+function extractEmailsFromHtml(html, websiteDomain) {
+  const emails = new Set();
+  const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+
+  // Domains / patterns that are never valid business emails
+  const BLACKLIST_DOMAINS = [
+    'example.com', 'test.com', 'sentry.io', 'wix.com', 'wixpress.com',
+    'wordpress.com', 'wordpress.org', 'squarespace.com', 'shopify.com',
+    'webflow.io', 'weebly.com', 'godaddy.com', 'googleapis.com',
+    'googleusercontent.com', 'gstatic.com', 'w3.org', 'schema.org',
+    'facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com',
+    'youtube.com', 'tiktok.com', 'apple.com', 'microsoft.com',
+    'mozilla.org', 'cloudflare.com', 'jsdelivr.net', 'unpkg.com',
+    'bootstrapcdn.com', 'fontawesome.com', 'cdnjs.cloudflare.com',
+    'fonts.googleapis.com', 'maps.googleapis.com', 'gravatar.com',
+  ];
+  const BLACKLIST_PREFIXES = [
+    'noreply', 'no-reply', 'mailer-daemon', 'postmaster', 'hostmaster',
+    'abuse', 'webmaster', 'root', 'admin@wordpress', 'support@wix',
+  ];
+  const BLACKLIST_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js', '.woff'];
+
+  function isValidEmail(email) {
+    const lower = email.toLowerCase();
+    const domain = lower.split('@')[1] || '';
+    const prefix = lower.split('@')[0] || '';
+    // Filter blacklisted domains
+    if (BLACKLIST_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) return false;
+    // Filter blacklisted prefixes
+    if (BLACKLIST_PREFIXES.some(p => prefix.startsWith(p))) return false;
+    // Filter emails that look like filenames (e.g. image@2x.png)
+    if (BLACKLIST_EXTENSIONS.some(ext => lower.includes(ext))) return false;
+    // Must have at least 2-char TLD
+    if (!/\.[a-z]{2,}$/i.test(domain)) return false;
+    // Prefix must be at least 2 chars
+    if (prefix.length < 2) return false;
+    return true;
+  }
+
+  // 1. Scan mailto: links (highest quality)
+  const mailtoRegex = /href=["']mailto:([^"'?]+)/gi;
+  let m;
+  while ((m = mailtoRegex.exec(html)) !== null) {
+    const email = m[1].trim().toLowerCase();
+    if (isValidEmail(email)) emails.add(email);
+  }
+
+  // 2. Scan full HTML for email patterns
+  let em;
+  while ((em = EMAIL_REGEX.exec(html)) !== null) {
+    const email = em[0].trim().toLowerCase();
+    if (isValidEmail(email)) emails.add(email);
+  }
+
+  // Sort: prioritize domain-matching emails, then common business prefixes
+  const domainClean = (websiteDomain || '').replace('www.', '').toLowerCase();
+  const BUSINESS_PREFIXES = ['info', 'contact', 'hello', 'office', 'sales', 'support', 'enquiry', 'enquiries', 'booking', 'bookings', 'appointments', 'reception', 'mail', 'team'];
+
+  const sorted = Array.from(emails).sort((a, b) => {
+    const aDomain = a.split('@')[1] || '';
+    const bDomain = b.split('@')[1] || '';
+    const aMatchesDomain = domainClean && aDomain === domainClean;
+    const bMatchesDomain = domainClean && bDomain === domainClean;
+    // Domain-matching emails first
+    if (aMatchesDomain && !bMatchesDomain) return -1;
+    if (!aMatchesDomain && bMatchesDomain) return 1;
+    // Prefer business prefixes
+    const aIsBizPrefix = BUSINESS_PREFIXES.some(p => a.startsWith(p + '@'));
+    const bIsBizPrefix = BUSINESS_PREFIXES.some(p => b.startsWith(p + '@'));
+    if (aIsBizPrefix && !bIsBizPrefix) return -1;
+    if (!aIsBizPrefix && bIsBizPrefix) return 1;
+    return 0;
+  });
+
+  return sorted;
+}
+
+// ── Extract email directly from Google Maps panel DOM ─────────────────────────
+function extractEmailFromMapsPanel() {
+  // Method 1: data-item-id containing "email" (some business profiles show this)
+  const emailBtn = document.querySelector('button[data-item-id*="email"]');
+  if (emailBtn) {
+    const textEl = emailBtn.querySelector('.Io6YTe');
+    if (textEl) {
+      const t = textEl.textContent.trim();
+      if (t && t.includes('@')) return t.toLowerCase();
+    }
+  }
+
+  // Method 2: mailto: links anywhere in the detail panel
+  const mailtoLinks = document.querySelectorAll('a[href^="mailto:"]');
+  for (const link of mailtoLinks) {
+    const href = link.getAttribute('href') || '';
+    const email = href.replace('mailto:', '').split('?')[0].trim().toLowerCase();
+    if (email && email.includes('@')) return email;
+  }
+
+  // Method 3: Scan all visible text in the Maps info section for email patterns
+  const infoSection = document.querySelector('[role="main"]');
+  if (infoSection) {
+    const textContent = infoSection.textContent || '';
+    const match = textContent.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+    if (match) {
+      const candidate = match[0].toLowerCase();
+      // Quick sanity: exclude common false positives from Maps UI
+      if (!candidate.includes('google.com') && !candidate.includes('gstatic.com')) {
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
 // ── Analyze External Website (via Background Proxy) ───────────────────────────
 async function analyzeWebsite(url) {
-  if (!url) return { platform: 'None', social: {}, broken: true, mobileFriendly: false, finalUrl: null };
+  if (!url) return { platform: 'None', social: {}, broken: true, mobileFriendly: false, finalUrl: null, emails: [] };
   try {
     const res = await new Promise((resolve) => {
       chrome.runtime.sendMessage({ action: 'FETCH_WEBSITE', url }, (response) => resolve(response));
     });
     
-    if (!res || !res.success || !res.html) return { platform: 'Unknown', social: {}, broken: true, mobileFriendly: false, finalUrl: null };
+    if (!res || !res.success || !res.html) return { platform: 'Unknown', social: {}, broken: true, mobileFriendly: false, finalUrl: null, emails: [] };
     const html = res.html;
     
     // Detect Platform
@@ -81,7 +196,7 @@ async function analyzeWebsite(url) {
     // Detect Social Links
     const social = { instagram: '', facebook: '', twitter: '', linkedin: '', youtube: '' };
     
-    // Scan all href="..." attributes in the HTML for reliable link extraction
+    // 1. Scan all href="..." attributes in the HTML for reliable link extraction
     const hrefRegex = /href=["'](https?:\/\/[^"']+)["']/gi;
     let match;
     while ((match = hrefRegex.exec(html)) !== null) {
@@ -94,10 +209,59 @@ async function analyzeWebsite(url) {
       else if (!social.linkedin && linkLow.includes('linkedin.com') && !linkLow.includes('/share')) social.linkedin = linkStr;
       else if (!social.youtube && linkLow.includes('youtube.com')) social.youtube = linkStr;
     }
+
+    // 2. Fallback to raw regex matching for modern JS sites (JSON-LD, state objects, etc.)
+    if (!social.instagram) {
+      const igMatch = html.match(/https?:\/\/(?:www\.)?instagram\.com\/([a-zA-Z0-9_.-]+)/i);
+      if (igMatch && !igMatch[0].includes('/p/')) social.instagram = igMatch[0];
+    }
+    if (!social.facebook) {
+      const fbMatch = html.match(/https?:\/\/(?:www\.)?facebook\.com\/([a-zA-Z0-9_.-]+)/i);
+      if (fbMatch && !fbMatch[0].includes('/sharer') && !fbMatch[0].includes('tr?')) social.facebook = fbMatch[0];
+    }
+    if (!social.twitter) {
+      const twMatch = html.match(/https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/([a-zA-Z0-9_.-]+)/i);
+      if (twMatch && !twMatch[0].includes('/intent/')) social.twitter = twMatch[0];
+    }
+    if (!social.linkedin) {
+      const liMatch = html.match(/https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/([a-zA-Z0-9_.-]+)/i);
+      if (liMatch) social.linkedin = liMatch[0];
+    }
+    if (!social.youtube) {
+      const ytMatch = html.match(/https?:\/\/(?:www\.)?youtube\.com\/(?:c|channel|user)\/([a-zA-Z0-9_.-]+)/i);
+      if (ytMatch) social.youtube = ytMatch[0];
+    }
+
+    let domain = '';
+    try {
+      domain = new URL(res.finalUrl || url).hostname;
+    } catch (e) {}
+
+    // Extract emails from HTML
+    let extractedEmails = extractEmailsFromHtml(html, domain);
     
-    return { platform, social, broken: false, mobileFriendly, finalUrl: res.finalUrl };
+    // If no emails found on homepage, try scraping the /contact page as a fallback
+    if (extractedEmails.length === 0) {
+      try {
+        const urlObj = new URL(res.finalUrl || url);
+        urlObj.pathname = '/contact';
+        const contactUrl = urlObj.toString();
+        
+        const contactRes = await new Promise((resolve) => {
+          chrome.runtime.sendMessage({ action: 'FETCH_WEBSITE', url: contactUrl }, (response) => resolve(response));
+        });
+        
+        if (contactRes && contactRes.success && contactRes.html) {
+          extractedEmails = extractEmailsFromHtml(contactRes.html, domain);
+        }
+      } catch (e) {
+        // Silently ignore contact page errors
+      }
+    }
+    
+    return { platform, social, broken: false, mobileFriendly, finalUrl: res.finalUrl, emails: extractedEmails };
   } catch (err) {
-    return { platform: 'Error', social: {}, broken: true, mobileFriendly: false, finalUrl: null };
+    return { platform: 'Error', social: {}, broken: true, mobileFriendly: false, finalUrl: null, emails: [] };
   }
 }
 
@@ -334,8 +498,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         seenNames.add(businessName.toLowerCase());
         if (phone && phone !== 'N/A') seenPhones.add(phone);
 
-        let safeEmail = 'N/A';
-        if (websiteUrl) { try { safeEmail = 'info@' + new URL(websiteUrl).hostname.replace('www.', ''); } catch(e) {} }
+        // ── Multi-source email extraction pipeline ────────────────────────────
+        let bestEmail = 'N/A';
+        let emailSource = 'Maps';
+        let emailType = 'Missing';
+        let emailConfidence = 0;
+
+        // Priority 1: Email from Google Maps panel DOM (confidence 95)
+        const mapsEmail = extractEmailFromMapsPanel();
+        if (mapsEmail) {
+          bestEmail = mapsEmail;
+          emailSource = 'Maps';
+          emailType = 'Business';
+          emailConfidence = 95;
+        }
+
+        // Priority 2-4: Emails extracted from website HTML
+        if (bestEmail === 'N/A' && websiteUrl && !isBroken) {
+          // siteAnalysis.emails is populated by analyzeWebsite → extractEmailsFromHtml
+          const siteEmails = (typeof siteAnalysis !== 'undefined' && siteAnalysis.emails) ? siteAnalysis.emails : [];
+          if (siteEmails.length > 0) {
+            const topEmail = siteEmails[0];
+            const websiteDomain = (() => { try { return new URL(websiteUrl).hostname.replace('www.', '').toLowerCase(); } catch(e) { return ''; } })();
+            const emailDomain = topEmail.split('@')[1] || '';
+            const matchesDomain = websiteDomain && emailDomain === websiteDomain;
+
+            bestEmail = topEmail;
+            emailSource = 'Website';
+            emailType = matchesDomain ? 'Business' : 'Generic';
+            // Check if it came from a mailto: link vs regex
+            emailConfidence = matchesDomain ? 85 : 60;
+          }
+        }
+
+        // Priority 5: Fallback — common prefix guess (confidence 40)
+        if (bestEmail === 'N/A' && websiteUrl) {
+          try {
+            bestEmail = 'info@' + new URL(websiteUrl).hostname.replace('www.', '');
+            emailSource = 'Manual';
+            emailType = 'Generic';
+            emailConfidence = 40;
+          } catch(e) {}
+        }
 
         leads.push({
           id: 'MAPS-' + Math.floor(1000 + Math.random() * 9000),
@@ -346,9 +550,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           websiteQuality: websiteUrl ? (isBroken ? 'Poor' : 'Average') : 'N/A',
           https: websiteUrl ? finalHttps : false,
           mobileFriendly: isMobileFriendly, phone, hours,
-          email: safeEmail, emailType: websiteUrl ? 'Business' : 'Missing',
-          emailSource: 'Maps', emailVerified: false,
-          emailConfidenceScore: websiteUrl ? 70 : 0,
+          email: bestEmail, emailType: emailType,
+          emailSource: emailSource, emailVerified: false,
+          emailConfidenceScore: emailConfidence,
           address, city, state, country, rating, reviewCount,
           instagramUrl: instagram, facebookUrl: facebook,
           twitterUrl: twitter, linkedinUrl: linkedin, youtubeUrl: youtube,
