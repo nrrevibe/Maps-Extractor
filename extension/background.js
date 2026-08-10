@@ -13,9 +13,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })
       .then(response => {
         if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
-        return response.text();
+        return response.text().then(html => ({ html, finalUrl: response.url }));
       })
-      .then(html => sendResponse({ success: true, html }))
+      .then(data => sendResponse({ success: true, html: data.html, finalUrl: data.finalUrl }))
       .catch(error => sendResponse({ success: false, error: error.message }));
       
     return true; // Keep port open for async response

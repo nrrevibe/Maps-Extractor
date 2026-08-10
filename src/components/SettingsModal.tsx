@@ -11,6 +11,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { AgencySettings } from '../types';
+import { TemplateManager } from './TemplateManager';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -37,7 +38,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white border border-slate-200 rounded-2xl max-w-xl w-full p-6 shadow-xl space-y-6 text-slate-800 overflow-y-auto max-h-[90vh]">
+      <div className="bg-white border border-slate-200 rounded-2xl max-w-3xl w-full p-6 shadow-xl space-y-6 text-slate-800 overflow-y-auto max-h-[90vh]">
         {/* Header */}
         <div className="flex justify-between items-center pb-4 border-b border-slate-100">
           <div className="flex items-center space-x-2">
@@ -254,7 +255,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex justify-end space-x-3">
+          <div className="border-t border-slate-100 pt-4 mt-4">
+            <TemplateManager 
+              customTemplates={form.customTemplates || []}
+              onChange={templates => setForm({ ...form, customTemplates: templates })}
+            />
+          </div>
+
+          {/* Footer Actions */}
+          <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}

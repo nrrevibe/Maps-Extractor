@@ -112,13 +112,11 @@ export function calculateLeadScore(lead: Partial<Lead>): {
   }
 
   // Revenue Potential & AI Conversion Likelihood Calculation (INR)
-  let estimatedValueNum = 15000;
-  if (score >= 80) estimatedValueNum = 25000 + ((lead.reviewCount || 0) * 50);
-  else if (score >= 60) estimatedValueNum = 15000 + ((lead.reviewCount || 0) * 20);
-  else estimatedValueNum = 8000;
+  let estimatedValueNum = 1000;
+  if (score >= 80) estimatedValueNum = 5000;
+  else if (score >= 60) estimatedValueNum = 3000;
+  else estimatedValueNum = 1000;
 
-  // Cap max package estimate at ₹75,000 and round to nearest 500
-  estimatedValueNum = Math.min(75000, Math.round(estimatedValueNum / 500) * 500);
   const revenuePotential = `₹${estimatedValueNum.toLocaleString('en-IN')}`;
 
   // AI Conversion Probability

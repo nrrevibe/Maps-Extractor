@@ -1,5 +1,12 @@
 import { EmailTemplate, Lead, AgencySettings } from '../types';
 
+export const getAvailableTemplates = (settings: AgencySettings): EmailTemplate[] => {
+  if (!settings.customTemplates || settings.customTemplates.length === 0) {
+    return DEFAULT_EMAIL_TEMPLATES;
+  }
+  return settings.customTemplates;
+};
+
 export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
   {
     id: 'tmpl-1',

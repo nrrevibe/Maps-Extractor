@@ -102,10 +102,17 @@ function doGet(e) {
   
   if (action === 'get_leads') {
     try {
-      const leads = getLeadsFromDatabase();
+      const page = parseInt(params.parameter.page) || 1;
+      const limit = parseInt(params.parameter.limit) || 0;
+      
+      const result = getLeadsFromDatabase(page, limit);
+      
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
-        leads: leads
+        total: result.total,
+        page: page,
+        limit: limit,
+        leads: result.leads
       })).setMimeType(ContentService.MimeType.JSON);
     } catch (err) {
       return ContentService.createTextOutput(JSON.stringify({
@@ -137,7 +144,7 @@ function doGet(e) {
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
-function getLeadsFromDatabase() {
+function getLeadsFromDatabase(page = 1, limit = 0) {
   let masterDb;
   try {
     masterDb = SpreadsheetApp.getActiveSpreadsheet();
@@ -155,10 +162,26 @@ function getLeadsFromDatabase() {
 
   const rawLeadsTab = getOrCreateSheet(masterDb, 'Raw_Leads');
   const lastRow = rawLeadsTab.getLastRow();
-  if (lastRow <= 1) return [];
+  const totalRecords = Math.max(0, lastRow - 1);
+  if (totalRecords === 0) return { total: 0, leads: [] };
 
   const headers = rawLeadsTab.getRange(1, 1, 1, rawLeadsTab.getLastColumn()).getValues()[0];
-  const data = rawLeadsTab.getRange(2, 1, lastRow - 1, rawLeadsTab.getLastColumn()).getValues();
+  
+  let data = [];
+  if (limit > 0) {
+    let startRow = 2 + (page - 1) * limit;
+    let numRows = limit;
+    if (startRow > lastRow) {
+      numRows = 0;
+    } else if (startRow + numRows - 1 > lastRow) {
+      numRows = lastRow - startRow + 1;
+    }
+    if (numRows > 0) {
+      data = rawLeadsTab.getRange(startRow, 1, numRows, rawLeadsTab.getLastColumn()).getValues();
+    }
+  } else {
+    data = rawLeadsTab.getRange(2, 1, totalRecords, rawLeadsTab.getLastColumn()).getValues();
+  }
 
   // ── Load Active_Leads for status/notes/follow-up overrides ──────────────────
   // Build a map keyed by raw_id so we can merge mutable fields back in
@@ -175,6 +198,8 @@ function getLeadsFromDatabase() {
         const emailStatusCol = aHeaders.indexOf('email_status');
         const notesCol = aHeaders.indexOf('notes');
         const followUpCol = aHeaders.indexOf('follow_up_date');
+        const suggestedServiceCol = aHeaders.indexOf('suggested_service');
+        const approvedTemplateCol = aHeaders.indexOf('approved_template_id');
         aData.forEach(row => {
           const rawId = rawIdCol >= 0 ? row[rawIdCol] : '';
           if (rawId) {
@@ -183,6 +208,8 @@ function getLeadsFromDatabase() {
               emailStatus: emailStatusCol >= 0 ? row[emailStatusCol] : '',
               notes: notesCol >= 0 ? row[notesCol] : '',
               followUpDate: followUpCol >= 0 ? row[followUpCol] : '',
+              suggestedService: suggestedServiceCol >= 0 ? row[suggestedServiceCol] : '',
+              approvedTemplateId: approvedTemplateCol >= 0 ? row[approvedTemplateCol] : '',
             };
           }
         });
@@ -236,7 +263,8 @@ function getLeadsFromDatabase() {
       leadPriority: (parseInt(lead.lead_score) || 50) >= 80 ? 'Hot Lead' : 'Medium Priority',
       opportunityType: lead.opportunity_type || (lead.website_url ? 'Social Media' : 'Website'),
       painPoint: lead.pain_point || (lead.website_url ? 'Mobile responsiveness refresh' : 'No website presence discovered'),
-      suggestedService: lead.suggested_service || (lead.website_url ? 'Website Redesign & SEO' : 'New Website Development'),
+      suggestedService: (overrides.suggestedService && overrides.suggestedService !== '') ? overrides.suggestedService : (lead.suggested_service || (lead.website_url ? 'Website Redesign & SEO' : 'New Website Development')),
+      approvedTemplateId: overrides.approvedTemplateId || lead.approved_template_id || '',
       // ── Mutable fields — prefer Active_Leads values if present ────────────
       leadStatus: overrides.leadStatus || lead.lead_status || 'New',
       emailStatus: overrides.emailStatus || lead.email_status || 'Not Sent',
@@ -247,7 +275,7 @@ function getLeadsFromDatabase() {
     };
   });
 
-  return leads;
+  return { total: totalRecords, leads: leads };
 }
 
 function getLeadSpreadsheet() {
@@ -716,7 +744,8 @@ function updateRowInTab(tab, lead) {
       'facebookUrl': 'facebook_url',
       'twitterUrl': 'twitter_url',
       'linkedinUrl': 'linkedin_url',
-      'leadScore': 'lead_score'
+      'leadScore': 'lead_score',
+      'approvedTemplateId': 'approved_template_id'
     };
 
     for (const [prop, col] of Object.entries(fieldMapping)) {

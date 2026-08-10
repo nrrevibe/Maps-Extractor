@@ -19,10 +19,11 @@ import {
   Flame,
   FileText,
   MessageCircle,
-  Instagram
+  Instagram,
+  Edit3
 } from 'lucide-react';
 import { Lead, AgencySettings } from '../types';
-import { renderEmailTemplate, DEFAULT_EMAIL_TEMPLATES, DEFAULT_WHATSAPP_TEMPLATES, getTemplateVariables } from '../utils/templates';
+import { renderEmailTemplate, getAvailableTemplates, DEFAULT_WHATSAPP_TEMPLATES, getTemplateVariables } from '../utils/templates';
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -44,13 +45,16 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const [pageSpeedScore, setPageSpeedScore] = useState<number | null>(null);
   const [pageSpeedError, setPageSpeedError] = useState<string | null>(null);
   const [outreachType, setOutreachType] = useState<'Email' | 'WhatsApp'>('Email');
-  const [selectedTemplateId, setSelectedTemplateId] = useState(DEFAULT_EMAIL_TEMPLATES[0].id);
+  const availableTemplates = getAvailableTemplates(settings);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(availableTemplates[0].id);
   const [editedNotes, setEditedNotes] = useState(typeof lead.notes === 'string' ? lead.notes : '');
   const [editedFollowUp, setEditedFollowUp] = useState(lead.followUpDate || '');
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [editableLead, setEditableLead] = useState<Lead>({ ...lead });
   const [copied, setCopied] = useState(false);
 
   // Render template preview
-  const templatesToUse = outreachType === 'Email' ? DEFAULT_EMAIL_TEMPLATES : DEFAULT_WHATSAPP_TEMPLATES;
+  const templatesToUse = outreachType === 'Email' ? availableTemplates : DEFAULT_WHATSAPP_TEMPLATES;
   const currentTemplate = templatesToUse.find(t => t.id === selectedTemplateId) || templatesToUse[0];
   const renderedEmail = renderEmailTemplate(currentTemplate, lead, settings);
   const evaluatedVariables = getTemplateVariables(lead, settings);
@@ -128,7 +132,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
   const handleSaveModal = () => {
     onUpdateLead({
-      ...lead,
+      ...editableLead,
       notes: editedNotes,
       followUpDate: editedFollowUp,
     });
@@ -196,6 +200,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
       ...lead,
       emailStatus: 'Approved',
       leadStatus: 'Approved',
+      approvedTemplateId: currentTemplate.id,
       notes: editedNotes,
       followUpDate: editedFollowUp,
     });
@@ -209,11 +214,20 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         <div className="p-6 border-b border-slate-100 flex items-start justify-between sticky top-0 bg-white z-10">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-sm">
-              {lead.businessName.slice(0, 2).toUpperCase()}
+              {(lead.businessName || 'NA').slice(0, 2).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-xl font-bold text-slate-900">{lead.businessName}</h2>
+                {isEditingDetails ? (
+                  <input
+                    type="text"
+                    value={editableLead.businessName}
+                    onChange={e => setEditableLead({ ...editableLead, businessName: e.target.value })}
+                    className="text-xl font-bold text-slate-900 border-b border-indigo-300 focus:outline-none focus:border-indigo-600 bg-transparent w-full"
+                  />
+                ) : (
+                  <h2 className="text-xl font-bold text-slate-900">{editableLead.businessName}</h2>
+                )}
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
                     lead.leadScore >= 80
@@ -280,13 +294,27 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1">
               <span className="text-xs text-slate-500 font-medium">Suggested Service</span>
               <div className="text-xs font-bold text-indigo-700 truncate">
-                {lead.suggestedService}
+                {isEditingDetails ? (
+                  <select
+                    value={editableLead.suggestedService}
+                    onChange={(e) => setEditableLead({ ...editableLead, suggestedService: e.target.value })}
+                    className="w-full bg-white border border-indigo-200 rounded px-1.5 py-0.5 outline-none focus:border-indigo-500"
+                  >
+                    <option value="Website Development">Website Development</option>
+                    <option value="Social Media Management">Social Media Management</option>
+                    <option value="Combined Growth Package">Combined Growth Package</option>
+                    <option value="SEO & Review Management">SEO & Review Management</option>
+                    <option value="Custom Service">Custom Service</option>
+                  </select>
+                ) : (
+                  editableLead.suggestedService
+                )}
               </div>
             </div>
           </div>
 
           {/* PageSpeed & Tech Banner */}
-          {lead.websiteUrl && lead.websiteUrl !== 'N/A' && (
+          {editableLead.websiteUrl && editableLead.websiteUrl !== 'N/A' && (
             <div className="bg-emerald-50/70 border border-emerald-100 p-5 rounded-xl space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -296,42 +324,18 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                   </h3>
                 </div>
                 
-                {pageSpeedScore === null && (
-                  <button
-                    onClick={handleRunPageSpeed}
-                    disabled={isCheckingPageSpeed}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition-all shadow-sm"
-                  >
-                    <Smartphone className="w-3.5 h-3.5" />
-                    <span>{isCheckingPageSpeed ? 'Checking Speed...' : 'Run Background Check'}</span>
-                  </button>
-                )}
+                <button
+                  onClick={() => window.open(`https://pagespeed.web.dev/analysis?url=${encodeURIComponent(editableLead.websiteUrl)}`, '_blank')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition-all shadow-sm"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open in PageSpeed Insights</span>
+                </button>
               </div>
 
-              {pageSpeedScore !== null ? (
-                <div className="flex items-center space-x-4 bg-white p-3.5 rounded-lg border border-emerald-100">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-xl border-4 ${pageSpeedScore >= 90 ? 'border-emerald-500 text-emerald-600' : pageSpeedScore >= 50 ? 'border-amber-500 text-amber-600' : 'border-rose-500 text-rose-600'}`}>
-                    {pageSpeedScore}
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-800">Mobile Performance Score</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {pageSpeedScore >= 90 ? 'Excellent performance. Focus pitch on SEO and social media.' : pageSpeedScore >= 50 ? 'Average speed. Pitch mobile optimization and caching.' : 'Poor speed. Massive opportunity for a website rebuild pitch!'}
-                    </div>
-                  </div>
-                </div>
-              ) : pageSpeedError ? (
-                <div className="bg-rose-50 p-3.5 rounded-lg border border-rose-100 flex items-start space-x-2">
-                  <ShieldAlert className="w-4 h-4 text-rose-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-xs text-rose-700 font-medium">
-                    {pageSpeedError}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 italic font-medium">
-                  Run a background check against Google's PageSpeed Insights API to get a real mobile performance score for {lead.websiteUrl}.
-                </p>
-              )}
+              <p className="text-xs text-slate-500 italic font-medium">
+                The automatic Google API check is currently unavailable. Click the button above to run the PageSpeed audit directly in your browser.
+              </p>
             </div>
           )}
 
@@ -369,26 +373,57 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           {/* Contact Details & Links */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-              <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Business Info</h4>
+              <div className="flex justify-between items-center">
+                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Business Info</h4>
+                <button 
+                  onClick={() => {
+                    if (isEditingDetails) {
+                      onUpdateLead({ ...editableLead, notes: editedNotes, followUpDate: editedFollowUp });
+                    }
+                    setIsEditingDetails(!isEditingDetails);
+                  }}
+                  className="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded-md text-slate-600 hover:text-indigo-600 font-bold flex items-center space-x-1"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>{isEditingDetails ? 'Save & Close' : 'Edit Info'}</span>
+                </button>
+              </div>
               <div className="space-y-2 text-xs">
                 <div className="flex items-center space-x-2 text-slate-700 font-medium">
                   <Phone className="w-4 h-4 text-indigo-600" />
-                  <span>Phone: <strong className="text-slate-900">{lead.phone}</strong></span>
+                  <span>Phone: </span>
+                  {isEditingDetails ? (
+                    <input type="text" value={editableLead.phone} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} className="border border-slate-300 rounded px-1.5 py-0.5 w-full font-bold text-slate-900" />
+                  ) : (
+                    <strong className="text-slate-900">{editableLead.phone}</strong>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2 text-slate-700 font-medium">
                   <Mail className="w-4 h-4 text-indigo-600" />
-                  <span>Email: <strong className="text-slate-900">{lead.email}</strong> ({lead.emailType})</span>
+                  <span>Email: </span>
+                  {isEditingDetails ? (
+                    <input type="text" value={editableLead.email} onChange={e => setEditableLead({...editableLead, email: e.target.value})} className="border border-slate-300 rounded px-1.5 py-0.5 w-full font-bold text-slate-900" />
+                  ) : (
+                    <strong className="text-slate-900">{editableLead.email}</strong>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2 text-slate-700 font-medium">
                   <MapPin className="w-4 h-4 text-indigo-600" />
-                  <span>Address: <strong className="text-slate-900">{lead.address}</strong></span>
+                  <span>Address: </span>
+                  {isEditingDetails ? (
+                    <input type="text" value={editableLead.address} onChange={e => setEditableLead({...editableLead, address: e.target.value})} className="border border-slate-300 rounded px-1.5 py-0.5 w-full font-bold text-slate-900" />
+                  ) : (
+                    <strong className="text-slate-900">{editableLead.address}</strong>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2 text-slate-700 font-medium">
                   <Globe className="w-4 h-4 text-indigo-600" />
                   <span>Website: </span>
-                  {lead.websiteUrl ? (
-                    <a href={lead.websiteUrl} target="_blank" rel="noreferrer" className="text-indigo-600 underline font-semibold flex items-center space-x-1">
-                      <span>{lead.websiteUrl}</span>
+                  {isEditingDetails ? (
+                    <input type="text" value={editableLead.websiteUrl} onChange={e => setEditableLead({...editableLead, websiteUrl: e.target.value})} className="border border-slate-300 rounded px-1.5 py-0.5 w-full font-bold text-slate-900" />
+                  ) : editableLead.websiteUrl ? (
+                    <a href={editableLead.websiteUrl} target="_blank" rel="noreferrer" className="text-indigo-600 underline font-semibold flex items-center space-x-1">
+                      <span>{editableLead.websiteUrl}</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   ) : (
@@ -427,7 +462,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 <h4 className="font-bold text-slate-900 text-sm">Personalized Outreach Draft</h4>
                 <div className="flex bg-slate-200 rounded-lg p-0.5 ml-2">
                   <button
-                    onClick={() => { setOutreachType('Email'); setSelectedTemplateId(DEFAULT_EMAIL_TEMPLATES[0].id); }}
+                    onClick={() => { setOutreachType('Email'); setSelectedTemplateId(availableTemplates[0].id); }}
                     className={`px-3 py-1 text-[10px] font-bold rounded-md transition-colors ${outreachType === 'Email' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
                   >
                     Email
@@ -445,7 +480,11 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                 <span className="text-xs text-slate-500 font-medium">Template:</span>
                 <select
                   value={selectedTemplateId}
-                  onChange={e => setSelectedTemplateId(e.target.value)}
+                  onChange={e => {
+                    const newId = e.target.value;
+                    setSelectedTemplateId(newId);
+                    onUpdateLead({ ...lead, approvedTemplateId: newId });
+                  }}
                   className="bg-white border border-slate-200 text-slate-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
                 >
                   {templatesToUse.map(tmpl => (

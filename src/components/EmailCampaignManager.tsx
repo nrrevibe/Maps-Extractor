@@ -25,20 +25,14 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Lead, EmailTemplate, AgencySettings } from '../types';
-import { DEFAULT_EMAIL_TEMPLATES, renderEmailTemplate } from '../utils/templates';
+import { getAvailableTemplates, renderEmailTemplate } from '../utils/templates';
 
-interface EmailCampaignManagerProps {
-  leads: Lead[];
-  onUpdateLead: (updatedLead: Lead) => void;
-  settings: AgencySettings;
-}
+import { useLeadStore } from '../store/useLeadStore';
 
-export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
-  leads,
-  onUpdateLead,
-  settings,
-}) => {
-  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate>(DEFAULT_EMAIL_TEMPLATES[0]);
+export const EmailCampaignManager: React.FC = () => {
+  const { leads, handleUpdateLead: onUpdateLead, settings } = useLeadStore();
+  const availableTemplates = getAvailableTemplates(settings);
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate>(availableTemplates[0]);
   const [selectedLeadId, setSelectedLeadId] = useState<string>(leads[0]?.id || '');
   const [sendingProgress, setSendingProgress] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
@@ -46,6 +40,7 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
   const [copiedModalText, setCopiedModalText] = useState(false);
   const [copiedVariableTag, setCopiedVariableTag] = useState<string | null>(null);
   const [showVarSidebar, setShowVarSidebar] = useState(true);
+  const [isApprovedQueueOpen, setIsApprovedQueueOpen] = useState(false);
 
   const selectedLead = leads.find(l => l.id === selectedLeadId) || leads[0];
 
@@ -77,72 +72,82 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
   const sentLeads = leads.filter(l => l.emailStatus === 'Sent' || l.emailStatus === 'Delivered');
   const repliedLeads = leads.filter(l => l.emailStatus === 'Replied' || l.leadStatus === 'Replied');
 
+  const previewTemplate = selectedLead?.approvedTemplateId
+    ? availableTemplates.find(t => t.id === selectedLead.approvedTemplateId) || selectedTemplate
+    : selectedTemplate;
+
   const renderedPreview = selectedLead
-    ? renderEmailTemplate(selectedTemplate, selectedLead, settings)
+    ? renderEmailTemplate(previewTemplate, selectedLead, settings)
     : { subject: '', body: '' };
 
   const handleStartCampaignDispatch = async () => {
     if (approvedLeads.length === 0) return;
     setSendingProgress(true);
-    setLogs([]);
+    setLogs([`[${new Date().toLocaleTimeString()}] Submitting ${approvedLeads.length} leads to Background Email Server Queue...`]);
 
-    const hasSmtp = settings.smtpHost && settings.smtpPort && settings.smtpUser && settings.smtpPass;
+    const mappedLeads = approvedLeads.map(current => {
+       const leadTemplate = availableTemplates.find(t => t.id === current.approvedTemplateId) || selectedTemplate;
+       const emailContent = renderEmailTemplate(leadTemplate, current, settings);
+       return {
+         lead: current,
+         to: current.email,
+         subject: emailContent.subject,
+         body: emailContent.body
+       };
+    });
 
-    for (let i = 0; i < approvedLeads.length; i++) {
-      const current = approvedLeads[i];
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Preparing outreach email for ${current.businessName} (${current.email})...`]);
-
-      const emailContent = renderEmailTemplate(selectedTemplate, current, settings);
-
-      let sendSuccess = false;
-      if (hasSmtp) {
-        try {
-          const res = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: current.email,
-              subject: emailContent.subject,
-              body: emailContent.body,
-              smtpSettings: {
-                smtpHost: settings.smtpHost,
-                smtpPort: settings.smtpPort,
-                smtpUser: settings.smtpUser,
-                smtpPass: settings.smtpPass,
-                senderName: settings.senderName,
-              }
-            })
-          });
-          const data = await res.json();
-          if (data.success) {
-            setLogs(prev => [...prev, `[SUCCESS] Email successfully sent to ${current.email} via SMTP!`]);
-            sendSuccess = true;
-          } else {
-            setLogs(prev => [...prev, `[ERROR] Failed to send to ${current.email}: ${data.error}`]);
-          }
-        } catch (err: any) {
-          setLogs(prev => [...prev, `[ERROR] Connection error for ${current.email}: ${err.message}`]);
-        }
-      } else {
-        await new Promise(r => setTimeout(r, 600));
-        setLogs(prev => [...prev, `[SIMULATION] Simulated email dispatch to ${current.email} (SMTP Settings not configured in Settings modal).`]);
-      }
-
-      const today = new Date().toISOString().split('T')[0];
-      const followUp = new Date(Date.now() + settings.followUpIntervalDays * 86400000).toISOString().split('T')[0];
-
-      onUpdateLead({
-        ...current,
-        emailStatus: sendSuccess ? 'Sent' : (hasSmtp ? 'Failed' : 'Draft'),
-        leadStatus: sendSuccess ? 'Contacted' : current.leadStatus,
-        lastContactDate: today,
-        followUpDate: followUp,
-        contactAttempts: (current.contactAttempts || 0) + (sendSuccess ? 1 : 0),
+    try {
+      const res = await fetch('/api/campaign/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leads: mappedLeads,
+          smtpSettings: {
+            smtpHost: settings.smtpHost,
+            smtpPort: settings.smtpPort,
+            smtpUser: settings.smtpUser,
+            smtpPass: settings.smtpPass,
+            senderName: settings.senderName,
+          },
+          scriptUrl: settings.googleAppsScriptUrl
+        })
       });
+      const data = await res.json();
+      
+      if (data.success && data.campaignId) {
+        setLogs(prev => [...prev, `[SUCCESS] Campaign ${data.campaignId} started in background. You can safely close this window.`]);
+        
+        // Start polling for live logs
+        const pollInterval = setInterval(async () => {
+           try {
+             const statusRes = await fetch(`/api/campaign/status/${data.campaignId}`);
+             const statusData = await statusRes.json();
+             
+             if (statusData && statusData.logs) {
+               setLogs(statusData.logs);
+             }
+             
+             if (statusData && statusData.status !== 'running') {
+               clearInterval(pollInterval);
+               setSendingProgress(false);
+               // Trigger a sync from Sheets to fetch the updated statuses
+               if (statusData.status === 'completed') {
+                 useLeadStore.getState().handleSyncFromGoogleSheets();
+               }
+             }
+           } catch(e) {
+             clearInterval(pollInterval);
+             setSendingProgress(false);
+           }
+        }, 3000);
+      } else {
+        setLogs(prev => [...prev, `[ERROR] Failed to start campaign queue: ${data.error}`]);
+        setSendingProgress(false);
+      }
+    } catch (err: any) {
+      setLogs(prev => [...prev, `[ERROR] Server connection error: ${err.message}`]);
+      setSendingProgress(false);
     }
-
-    setLogs(prev => [...prev, `[SUCCESS] Campaign run complete!`]);
-    setSendingProgress(false);
   };
 
   const handleOpenGmailDraft = (lead: Lead) => {
@@ -172,12 +177,18 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 p-5 rounded-2xl flex items-center space-x-4 shadow-sm">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+        <div 
+          onClick={() => approvedLeads.length > 0 && setIsApprovedQueueOpen(true)}
+          className={`bg-white border border-slate-200 p-5 rounded-2xl flex items-center space-x-4 shadow-sm transition-all ${approvedLeads.length > 0 ? 'hover:border-amber-400 hover:shadow-md cursor-pointer group' : ''}`}
+        >
+          <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors">
             <Clock className="w-6 h-6" />
           </div>
-          <div>
-            <span className="text-xs text-slate-500 font-medium">Approved Queue</span>
+          <div className="flex-1">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-500 font-medium group-hover:text-amber-700 transition-colors">Approved Queue</span>
+              {approvedLeads.length > 0 && <Eye className="w-3.5 h-3.5 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+            </div>
             <div className="text-2xl font-extrabold text-amber-600">{approvedLeads.length}</div>
           </div>
         </div>
@@ -224,12 +235,15 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
           </div>
 
           <div className="space-y-3">
-            {DEFAULT_EMAIL_TEMPLATES.map(tmpl => (
+            {availableTemplates.map(tmpl => (
               <button
                 key={tmpl.id}
-                onClick={() => setSelectedTemplate(tmpl)}
+                onClick={() => {
+                  setSelectedTemplate(tmpl);
+                  if (selectedLead) onUpdateLead({ ...selectedLead, approvedTemplateId: tmpl.id });
+                }}
                 className={`w-full text-left p-4 rounded-xl border transition-all ${
-                  selectedTemplate.id === tmpl.id
+                  previewTemplate.id === tmpl.id
                     ? 'bg-indigo-50/70 border-indigo-500 text-slate-900 shadow-sm'
                     : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
                 }`}
@@ -346,7 +360,7 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
                   onChange={e => setSelectedLeadId(e.target.value)}
                   className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[180px] truncate font-semibold"
                 >
-                  {leads.map(l => (
+                  {leads.slice(0, 100).map(l => (
                     <option key={l.id} value={l.id}>
                       {l.businessName} ({l.city})
                     </option>
@@ -390,7 +404,7 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
 
                 <button
                   onClick={() => {
-                    onUpdateLead({ ...selectedLead, emailStatus: 'Approved', leadStatus: 'Approved' });
+                    onUpdateLead({ ...selectedLead, emailStatus: 'Approved', leadStatus: 'Approved', approvedTemplateId: previewTemplate.id });
                   }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm"
                 >
@@ -480,7 +494,7 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
                     onChange={e => setSelectedLeadId(e.target.value)}
                     className="bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold max-w-[200px] truncate"
                   >
-                    {leads.map(l => (
+                    {leads.slice(0, 100).map(l => (
                       <option key={l.id} value={l.id}>
                         {l.businessName} ({l.city})
                       </option>
@@ -507,18 +521,21 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
                     <h4 className="font-bold text-slate-900 text-sm">Template Blueprint (Raw Tags)</h4>
                   </div>
                   <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 rounded-full text-[10px] font-bold">
-                    {selectedTemplate.category}
+                    {previewTemplate.category}
                   </span>
                 </div>
 
                 {/* Template Selector Tabs */}
                 <div className="flex flex-wrap gap-1.5">
-                  {DEFAULT_EMAIL_TEMPLATES.map(tmpl => (
+                  {availableTemplates.map(tmpl => (
                     <button
                       key={tmpl.id}
-                      onClick={() => setSelectedTemplate(tmpl)}
+                      onClick={() => {
+                        setSelectedTemplate(tmpl);
+                        if (selectedLead) onUpdateLead({ ...selectedLead, approvedTemplateId: tmpl.id });
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        selectedTemplate.id === tmpl.id
+                        previewTemplate.id === tmpl.id
                           ? 'bg-indigo-600 text-white shadow-sm'
                           : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
                       }`}
@@ -532,7 +549,7 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
                 <div className="space-y-1">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Subject Line Tag Pattern</span>
                   <div className="bg-white border border-slate-200 p-3 rounded-xl font-mono text-xs text-indigo-900 font-semibold shadow-sm">
-                    {selectedTemplate.subject}
+                    {previewTemplate.subject}
                   </div>
                 </div>
 
@@ -653,7 +670,7 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
 
                       <button
                         onClick={() => {
-                          onUpdateLead({ ...selectedLead, emailStatus: 'Approved', leadStatus: 'Approved' });
+                          onUpdateLead({ ...selectedLead, emailStatus: 'Approved', leadStatus: 'Approved', approvedTemplateId: previewTemplate.id });
                           setIsSplitViewOpen(false);
                         }}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl flex items-center space-x-1.5 transition-all shadow-sm"
@@ -665,6 +682,59 @@ export const EmailCampaignManager: React.FC<EmailCampaignManagerProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Approved Queue Modal */}
+      {isApprovedQueueOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-xl">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-amber-50 rounded-t-2xl">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5 text-amber-600" />
+                <h3 className="font-bold text-slate-800">Approved Queue ({approvedLeads.length})</h3>
+              </div>
+              <button onClick={() => setIsApprovedQueueOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-amber-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto space-y-2 flex-1">
+              {approvedLeads.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-sm">
+                  Your approved queue is empty.
+                </div>
+              ) : (
+                <>
+                  {approvedLeads.slice(0, 100).map(lead => (
+                    <div key={lead.id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl hover:border-indigo-300 hover:shadow-sm transition-all flex justify-between items-center cursor-pointer group"
+                      onClick={() => {
+                        setSelectedLeadId(lead.id);
+                        setIsApprovedQueueOpen(false);
+                      }}
+                    >
+                      <div>
+                        <div className="font-bold text-slate-800 text-sm group-hover:text-indigo-700 transition-colors">{lead.businessName}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          {lead.email || 'No Email'} • Template: {availableTemplates.find(t => t.id === lead.approvedTemplateId)?.name || 'Default'}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="px-2 py-1 bg-amber-100 text-amber-800 rounded text-[10px] font-bold">
+                          Ready to Send
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 transition-colors" />
+                      </div>
+                    </div>
+                  ))}
+                  {approvedLeads.length > 100 && (
+                    <div className="text-center py-2 text-xs text-slate-500 font-medium">
+                      + {approvedLeads.length - 100} more leads in queue
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -34,17 +34,22 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ leads })
     { name: 'Low Priority (0-39)', count: leads.filter(l => l.leadScore < 40).length, color: '#64748b' },
   ];
 
-  // Opportunity Types
-  const mainOpportunityTypes = ['Website', 'New Website', 'Redesign', 'Social Media', 'Both', 'SEO'];
-  
-  const opportunityData = [
-    { name: 'New Website Needed', value: leads.filter(l => l.opportunityType === 'Website' || l.opportunityType === 'New Website').length, color: '#06b6d4' },
-    { name: 'Website Redesign', value: leads.filter(l => l.opportunityType === 'Redesign').length, color: '#ec4899' },
-    { name: 'Social Media Needed', value: leads.filter(l => l.opportunityType === 'Social Media').length, color: '#a855f7' },
-    { name: 'Combined Growth Package', value: leads.filter(l => l.opportunityType === 'Both').length, color: '#10b981' },
-    { name: 'Local SEO', value: leads.filter(l => l.opportunityType === 'SEO').length, color: '#f59e0b' },
-    { name: 'Other / Uncategorized', value: leads.filter(l => !l.opportunityType || !mainOpportunityTypes.includes(l.opportunityType)).length, color: '#94a3b8' },
-  ].filter(d => d.value > 0);
+  // Opportunity Types (Based on Suggested Services)
+  const serviceCounts: Record<string, number> = {};
+  leads.forEach(l => {
+    const svc = l.suggestedService || 'Uncategorized';
+    serviceCounts[svc] = (serviceCounts[svc] || 0) + 1;
+  });
+
+  const colors = ['#06b6d4', '#ec4899', '#a855f7', '#10b981', '#f59e0b', '#3b82f6', '#f43f5e', '#8b5cf6'];
+  const opportunityData = Object.entries(serviceCounts)
+    .filter(([_, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1]) // sort by count descending
+    .map(([name, count], idx) => ({
+      name: name.length > 30 ? name.substring(0, 30) + '...' : name,
+      value: count,
+      color: colors[idx % colors.length]
+    }));
 
   // Pipeline Status
   const funnelData = [

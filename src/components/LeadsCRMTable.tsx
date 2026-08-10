@@ -35,26 +35,21 @@ import {
 } from 'lucide-react';
 import { Lead, LeadStatus, EmailStatus, LeadPriority } from '../types';
 import { calculateLeadScore } from '../utils/scoring';
+import { TableVirtuoso } from 'react-virtuoso';
 
 interface LeadsCRMTableProps {
-  leads: Lead[];
-  onUpdateLead: (updatedLead: Lead) => void;
-  onDeleteLead: (leadId: string) => void;
   onSelectLeadForModal: (lead: Lead) => void;
   onRunBatchAIAudit: (selectedLeadIds: string[]) => void;
-  onAddLeads?: (leads: Lead[]) => void;
-  settings: any;
 }
 
+import { useLeadStore } from '../store/useLeadStore';
+
 export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
-  leads,
-  onUpdateLead,
-  onDeleteLead,
   onSelectLeadForModal,
   onRunBatchAIAudit,
-  onAddLeads,
-  settings,
 }) => {
+  const { leads, settings, handleUpdateLead: onUpdateLead, handleDeleteLead: onDeleteLead, handleAddLeads: onAddLeads } = useLeadStore();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -253,17 +248,6 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
       </div>
     );
   };
-
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
-  
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, priorityFilter, statusFilter, quickChipFilter, opportunityFilter, contactInfoFilter, pageSize]);
-
-  const totalPages = Math.ceil(sortedLeads.length / pageSize) || 1;
-  const paginatedLeads = sortedLeads.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Select / Deselect All
   const toggleSelectAll = () => {
@@ -464,9 +448,9 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
       websiteQuality: hasWebsite ? 'Average' : 'N/A',
       https: hasWebsite ? newLeadForm.websiteUrl.startsWith('https') : false,
       mobileFriendly: true,
-      phone: newLeadForm.phone || '+1 555-0199',
-      email: newLeadForm.email || `contact@${domainSlug || 'business'}.com`,
-      emailType: 'Business',
+      phone: newLeadForm.phone || 'N/A',
+      email: newLeadForm.email || 'N/A',
+      emailType: newLeadForm.email ? 'Business' : 'Missing',
       emailSource: 'Manual',
       emailVerified: true,
       emailConfidenceScore: 90,
@@ -499,6 +483,16 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
       customTags: audit.customTags,
     };
 
+    // 1. Persist new lead to backend immediately
+    if (settings.googleAppsScriptUrl) {
+      fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leads: [completeLead], scriptUrl: settings.googleAppsScriptUrl })
+      }).catch(err => console.error('Failed to persist custom lead to DB', err));
+    }
+
+    // 2. Add to local state (and local sync queue)
     if (onAddLeads) {
       onAddLeads([completeLead]);
     } else {
@@ -777,12 +771,18 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
       )}
       </div>
 
-      {/* Main CRM Table */}
+      {/* Main CRM Table (Virtualized) */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto max-h-[620px] overflow-y-auto">
-          <table className="w-full text-left text-xs text-slate-700 relative">
-            <thead className="bg-slate-50 text-slate-500 font-bold text-[10px] uppercase tracking-wider sticky top-0 z-20 border-b border-slate-200 select-none">
-              <tr>
+        <TableVirtuoso
+          style={{ height: '620px' }}
+          data={sortedLeads}
+          components={{
+            Table: (props) => <table {...props} className="w-full text-left text-xs text-slate-700 relative" />,
+            TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-slate-50 text-slate-500 font-bold text-[10px] uppercase tracking-wider sticky top-0 z-20 border-b border-slate-200 select-none" />),
+            TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-slate-100" />),
+          }}
+          fixedHeaderContent={() => (
+            <tr>
                 {/* Checkbox Header */}
                 <th className="py-3.5 px-3 w-12 rounded-tl-xl">
                   <button
@@ -891,25 +891,12 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
 
                 <th className="py-3.5 px-3 w-24">Email Status</th>
                 <th className="py-3.5 px-3 w-20 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {sortedLeads.length === 0 ? (
-                <tr>
-                  <td colSpan={12} className="py-12 text-center text-slate-500 font-medium">
-                    No leads found matching your criteria. Use the Google Maps Scraper tab to extract new leads!
-                  </td>
-                </tr>
-              ) : (
-                paginatedLeads.map(lead => {
-                  const isSelected = selectedLeadIds.has(lead.id);
-                  return (
-                    <tr
-                      key={lead.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        isSelected ? 'bg-indigo-50/40' : ''
-                      }`}
-                    >
+            </tr>
+          )}
+          itemContent={(index, lead) => {
+            const isSelected = selectedLeadIds.has(lead.id);
+            return (
+              <>
                       {/* Checkbox */}
                       <td className="py-3 px-3">
                         <button
@@ -971,7 +958,7 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
                         {lead.customTags && lead.customTags.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1">
                             {lead.customTags.slice(0, 2).map((tg, idx) => (
-                              <span key={idx} className="text-[9px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded font-medium">
+                              <span key={idx} className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${tg.startsWith('Duplicate of:') ? 'bg-rose-100 text-rose-700 border border-rose-200' : 'bg-slate-100 text-slate-600'}`}>
                                 {tg}
                               </span>
                             ))}
@@ -1197,56 +1184,12 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
                           </button>
                         </div>
                       </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+              </>
+            );
+          }}
+        />
 
-        {/* Footer Summary & Pagination */}
-        <div className="bg-slate-50 border-t border-slate-200 rounded-b-xl flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-4">
-          <div className="text-xs text-slate-500 font-medium">
-            Showing {sortedLeads.length > 0 ? ((currentPage - 1) * pageSize) + 1 : 0} to {Math.min(currentPage * pageSize, sortedLeads.length)} of {sortedLeads.length} leads
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-medium hidden sm:inline">Rows per page:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-                className="text-xs border border-slate-200 rounded px-2 py-1 text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              >
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={250}>250</option>
-              </select>
-            </div>
 
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed bg-white"
-              >
-                Prev
-              </button>
-              <div className="px-3 text-xs font-bold text-slate-700 whitespace-nowrap">
-                Page {currentPage} of {totalPages}
-              </div>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 rounded border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed bg-white"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        </div>
 
         <div className="bg-slate-100/50 px-4 py-3 border-t border-slate-200 text-xs text-slate-600 flex flex-wrap justify-between items-center gap-2 font-medium rounded-b-xl">
           <div className="flex items-center space-x-4">

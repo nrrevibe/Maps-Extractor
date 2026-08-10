@@ -57,13 +57,13 @@ function extractSocialLinks(scope) {
 
 // ── Analyze External Website (via Background Proxy) ───────────────────────────
 async function analyzeWebsite(url) {
-  if (!url) return { platform: 'None', social: {} };
+  if (!url) return { platform: 'None', social: {}, broken: true, mobileFriendly: false, finalUrl: null };
   try {
     const res = await new Promise((resolve) => {
       chrome.runtime.sendMessage({ action: 'FETCH_WEBSITE', url }, (response) => resolve(response));
     });
     
-    if (!res || !res.success || !res.html) return { platform: 'Unknown', social: {} };
+    if (!res || !res.success || !res.html) return { platform: 'Unknown', social: {}, broken: true, mobileFriendly: false, finalUrl: null };
     const html = res.html;
     
     // Detect Platform
@@ -74,6 +74,9 @@ async function analyzeWebsite(url) {
     else if (/squarespace\.com/i.test(html)) platform = 'Squarespace';
     else if (/weebly\.com/i.test(html)) platform = 'Weebly';
     else if (/webflow\.com/i.test(html)) platform = 'Webflow';
+    
+    // Detect Mobile Friendly
+    const mobileFriendly = /<meta\s+name=["']viewport["']/i.test(html);
     
     // Detect Social Links
     const social = { instagram: '', facebook: '', twitter: '', linkedin: '', youtube: '' };
@@ -92,9 +95,9 @@ async function analyzeWebsite(url) {
       else if (!social.youtube && linkLow.includes('youtube.com')) social.youtube = linkStr;
     }
     
-    return { platform, social };
+    return { platform, social, broken: false, mobileFriendly, finalUrl: res.finalUrl };
   } catch (err) {
-    return { platform: 'Error', social: {} };
+    return { platform: 'Error', social: {}, broken: true, mobileFriendly: false, finalUrl: null };
   }
 }
 
@@ -306,9 +309,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const { city, state, country } = parseCityState(address);
         // ── Analyze External Website for deeper insights ──────────────────────
         let websitePlatform = 'None';
+        let isBroken = false;
+        let isMobileFriendly = true;
+        let finalHttps = false;
+
         if (websiteUrl) {
           const siteAnalysis = await analyzeWebsite(websiteUrl);
           websitePlatform = siteAnalysis.platform;
+          isBroken = siteAnalysis.broken;
+          isMobileFriendly = siteAnalysis.mobileFriendly;
+          finalHttps = siteAnalysis.finalUrl ? siteAnalysis.finalUrl.startsWith('https') : websiteUrl.startsWith('https');
+          
           // Only overwrite if the Maps panel didn't already have them
           if (!instagram && siteAnalysis.social.instagram) instagram = siteAnalysis.social.instagram;
           if (!facebook && siteAnalysis.social.facebook) facebook = siteAnalysis.social.facebook;
@@ -329,11 +340,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         leads.push({
           id: 'MAPS-' + Math.floor(1000 + Math.random() * 9000),
           businessName, category, googleMapsUrl: link.href,
-          websiteUrl, websiteStatus: websiteUrl ? 'Active' : 'No Website',
+          websiteUrl, 
+          websiteStatus: websiteUrl ? (isBroken ? 'Broken' : 'Active') : 'No Website',
           websiteTechnology: websitePlatform,
-          websiteQuality: websiteUrl ? 'Average' : 'N/A',
-          https: websiteUrl ? websiteUrl.startsWith('https') : false,
-          mobileFriendly: true, phone, hours,
+          websiteQuality: websiteUrl ? (isBroken ? 'Poor' : 'Average') : 'N/A',
+          https: websiteUrl ? finalHttps : false,
+          mobileFriendly: isMobileFriendly, phone, hours,
           email: safeEmail, emailType: websiteUrl ? 'Business' : 'Missing',
           emailSource: 'Maps', emailVerified: false,
           emailConfidenceScore: websiteUrl ? 70 : 0,

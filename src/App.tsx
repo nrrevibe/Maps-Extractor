@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { MapsExtractor } from './components/MapsExtractor';
 import { LeadsCRMTable } from './components/LeadsCRMTable';
@@ -7,7 +7,8 @@ import { EmailCampaignManager } from './components/EmailCampaignManager';
 import { ExtensionSimulator } from './components/ExtensionSimulator';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { SettingsModal } from './components/SettingsModal';
-import { useLeadContext } from './context/LeadContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { useLeadStore } from './store/useLeadStore';
 import { Lead } from './types';
 import { AlertCircle } from 'lucide-react';
 
@@ -21,12 +22,106 @@ export default function App() {
     handleUpdateLead, 
     handleDeleteLead,
     existingLeadIds,
-    isConnected 
-  } = useLeadContext();
+    isConnected,
+    setLeads,
+    setIsConnected
+  } = useLeadStore();
 
   const [activeTab, setActiveTab] = useState<'extractor' | 'crm' | 'emails' | 'extension' | 'analytics'>('extractor');
   const [selectedLeadForModal, setSelectedLeadForModal] = useState<Lead | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const fuzzyNameMatch = (a: string, b: string): boolean => {
+    if (!a || !b) return false;
+    const n1 = a.toLowerCase().replace(/[|•,]/g, ' ').replace(/\s+/g, ' ').trim();
+    const n2 = b.toLowerCase().replace(/[|•,]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (n1 === n2) return true;
+    if (n1.includes(n2) || n2.includes(n1)) return true;
+    const w1 = n1.split(' ')[0];
+    const w2 = n2.split(' ')[0];
+    if (w1 && w2 && w1 === w2 && w1.length > 3) return true;
+    return false;
+  };
+
+  const handleSyncFromLocalServer = async () => {
+    try {
+      const scriptUrl = settings.googleAppsScriptUrl;
+      const res = await fetch(`/api/leads${scriptUrl ? `?scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`);
+      if (!res.ok) throw new Error('Local server down');
+      const data = await res.json();
+      setIsConnected(true);
+      
+      if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
+        setLeads((() => {
+          const combined = [...leads];
+          data.leads.forEach((nl: Lead) => {
+            const index = combined.findIndex(el => el.id === nl.id || (nl as any).raw_id && el.id === (nl as any).raw_id);
+            if (index !== -1) {
+              combined[index] = { ...combined[index], ...nl };
+            } else {
+              const originalMatch = combined.find(
+                el =>
+                  fuzzyNameMatch(el.businessName, nl.businessName) ||
+                  (el.websiteUrl && nl.websiteUrl && el.websiteUrl !== 'N/A' && el.websiteUrl !== '' && el.websiteUrl === nl.websiteUrl) ||
+                  (el.phone && nl.phone && el.phone !== 'N/A' && el.phone !== '' && el.phone === nl.phone)
+              );
+              if (originalMatch) {
+                nl.customTags = [...(nl.customTags || []), `Duplicate of: ${originalMatch.businessName}`];
+              }
+              combined.unshift(nl);
+            }
+          });
+          return combined;
+        })());
+      }
+    } catch (e) {
+      setIsConnected(false);
+    }
+  };
+
+  useEffect(() => {
+    handleSyncFromLocalServer();
+    const interval = setInterval(handleSyncFromLocalServer, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (settings.googleAppsScriptUrl) {
+      handleSyncFromGoogleSheets();
+    }
+  }, [settings.googleAppsScriptUrl]);
+
+  useEffect(() => {
+    const processQueue = async () => {
+      try {
+        const queueStr = localStorage.getItem('nr_revibe_sync_queue');
+        if (!queueStr) return;
+        
+        const queue: Lead[] = JSON.parse(queueStr);
+        if (queue.length === 0) return;
+        
+        const leadToSync = queue[0];
+        const scriptUrl = settings.googleAppsScriptUrl;
+        
+        const res = await fetch(`/api/leads/${leadToSync.id}${scriptUrl ? `?scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead: leadToSync })
+        });
+        
+        setIsConnected(true);
+        if (res.ok) {
+          const newQueue = queue.slice(1);
+          localStorage.setItem('nr_revibe_sync_queue', JSON.stringify(newQueue));
+        }
+      } catch (e) {
+        setIsConnected(false);
+      }
+    };
+    
+    const interval = setInterval(processQueue, 5000);
+    return () => clearInterval(interval);
+  }, [settings.googleAppsScriptUrl]);
 
   const handleDeleteLeadModal = async (id: string) => {
     await handleDeleteLead(id);
@@ -35,7 +130,6 @@ export default function App() {
     }
   };
 
-  // Batch Gemini AI Audit
   const handleRunBatchAIAudit = async (selectedIds: string[]) => {
     for (const id of selectedIds) {
       const target = leads.find(l => l.id === id);
@@ -66,7 +160,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Global Connection Banner */}
       {!isConnected && (
         <div className="bg-rose-50 border-b border-rose-200 px-4 py-2 flex items-center justify-center space-x-2 animate-in fade-in slide-in-from-top-2 duration-300">
           <AlertCircle className="w-4 h-4 text-rose-600" />
@@ -76,7 +169,6 @@ export default function App() {
         </div>
       )}
 
-      {/* App Header */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -87,67 +179,63 @@ export default function App() {
         approvedEmailCount={approvedEmailCount}
       />
 
-      {/* Main Tab Content */}
       <main className="flex-1 max-w-full w-full px-6 py-6">
-        {activeTab === 'extractor' && (
-          <MapsExtractor
-            onAddLeads={handleAddLeads}
-            existingLeadIds={existingLeadIds}
-            onSyncFromSheets={handleSyncFromGoogleSheets}
-            settings={settings}
-          />
-        )}
+        <ErrorBoundary componentName={`${activeTab} tab`}>
+          {activeTab === 'extractor' && (
+            <MapsExtractor
+              onAddLeads={handleAddLeads}
+              existingLeadIds={existingLeadIds}
+              onSyncFromSheets={handleSyncFromGoogleSheets}
+              settings={settings}
+            />
+          )}
 
-        {activeTab === 'crm' && (
-          <LeadsCRMTable
-            leads={leads}
-            onUpdateLead={handleUpdateLead}
-            onDeleteLead={handleDeleteLeadModal}
-            onSelectLeadForModal={lead => setSelectedLeadForModal(lead)}
-            onRunBatchAIAudit={handleRunBatchAIAudit}
-            onAddLeads={handleAddLeads}
-            settings={settings}
-          />
-        )}
+          {activeTab === 'crm' && (
+            <LeadsCRMTable
+              onSelectLeadForModal={lead => setSelectedLeadForModal(lead)}
+              onRunBatchAIAudit={handleRunBatchAIAudit}
+            />
+          )}
 
-        {activeTab === 'emails' && (
-          <EmailCampaignManager
-            leads={leads}
-            onUpdateLead={handleUpdateLead}
-            settings={settings}
-          />
-        )}
+          {activeTab === 'emails' && (
+            <EmailCampaignManager />
+          )}
 
-        {activeTab === 'extension' && (
-          <ExtensionSimulator
-            leads={leads}
-            settings={settings}
-            onAddLeads={handleAddLeads}
-          />
-        )}
+          {activeTab === 'extension' && (
+            <ExtensionSimulator
+              leads={leads}
+              settings={settings}
+              onAddLeads={handleAddLeads}
+            />
+          )}
 
-        {activeTab === 'analytics' && <AnalyticsDashboard leads={leads} />}
+          {activeTab === 'analytics' && <AnalyticsDashboard leads={leads} />}
+        </ErrorBoundary>
       </main>
 
-      {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 font-medium">
         NR Revibe Lead Generation & Google Sheets Extension Suite • Website Development & Social Media Management
       </footer>
 
-      {/* Modals */}
-      <LeadDetailModal
-        lead={selectedLeadForModal}
-        onClose={() => setSelectedLeadForModal(null)}
-        onUpdateLead={handleUpdateLead}
-        settings={settings}
-      />
+      {selectedLeadForModal && (
+        <ErrorBoundary componentName="Lead Detail Modal">
+          <LeadDetailModal
+            lead={selectedLeadForModal}
+            onClose={() => setSelectedLeadForModal(null)}
+            onUpdateLead={handleUpdateLead}
+            settings={settings}
+          />
+        </ErrorBoundary>
+      )}
 
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        settings={settings}
-        onSaveSettings={handleUpdateSettings}
-      />
+      <ErrorBoundary componentName="Settings Modal">
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          settings={settings}
+          onSaveSettings={handleUpdateSettings}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

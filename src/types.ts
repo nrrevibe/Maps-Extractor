@@ -87,6 +87,7 @@ export interface Lead {
   revenuePotential?: string;
   aiConversionProbability?: number;
   customTags?: string[];
+  approvedTemplateId?: string;
 }
 
 export interface EmailTemplate {
@@ -117,6 +118,7 @@ export interface AgencySettings {
   smtpPort?: number;
   smtpUser?: string;
   smtpPass?: string;
+  customTemplates?: EmailTemplate[];
 }
 
 export interface ScraperFilter {
