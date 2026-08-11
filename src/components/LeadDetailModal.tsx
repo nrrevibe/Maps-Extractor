@@ -53,6 +53,16 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const [editableLead, setEditableLead] = useState<Lead>({ ...lead });
   const [copied, setCopied] = useState(false);
 
+  const togglePhrase = (current: string = '', phrase: string, add: boolean) => {
+    let phrases = current.split(' and ').map(s => s.trim()).filter(Boolean);
+    if (add) {
+      if (!phrases.includes(phrase)) phrases.push(phrase);
+    } else {
+      phrases = phrases.filter(p => p !== phrase);
+    }
+    return phrases.join(' and ');
+  };
+
   // Render template preview
   const availableWhatsAppTemplates = getAvailableWhatsAppTemplates(settings);
   const templatesToUse = outreachType === 'Email' ? availableTemplates : availableWhatsAppTemplates;
@@ -473,22 +483,44 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                       <span className="text-slate-400 font-normal">Select preset or type custom</span>
                     </label>
                     <div className="space-y-1.5">
-                      <select 
-                        value={editableLead.customWebsiteIssue || ''}
-                        onChange={(e) => {
-                          if (e.target.value) setEditableLead({...editableLead, customWebsiteIssue: e.target.value});
-                          else setEditableLead({...editableLead, customWebsiteIssue: ''});
-                        }}
-                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
-                      >
-                        <option value="">🤖 Smart Auto-Generate</option>
-                        <option value="you don't currently have a dedicated website">No Website</option>
-                        <option value="your website lacks mobile optimization and a secure connection (HTTPS)">No Mobile & HTTPS</option>
-                        <option value="your website lacks mobile optimization">No Mobile</option>
-                        <option value="your website is missing a secure connection (HTTPS)">No HTTPS</option>
-                        <option value="your website could use a modern redesign to improve conversions">Needs Redesign</option>
-                        <option value="your website could be optimized to bring in more direct leads">Needs Optimization</option>
-                      </select>
+                    <div className="space-y-2 bg-slate-50 p-2 border border-slate-200 rounded text-xs h-40 overflow-y-auto">
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("you don't currently have a dedicated website")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "you don't currently have a dedicated website", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>No Website</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("your website lacks mobile optimization")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "your website lacks mobile optimization", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>No Mobile Optimization</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("your website is missing a secure connection (HTTPS)")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "your website is missing a secure connection (HTTPS)", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>No HTTPS</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("your website could use a modern redesign to improve conversions")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "your website could use a modern redesign to improve conversions", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Needs Redesign</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("your website could be optimized to bring in more direct leads")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "your website could be optimized to bring in more direct leads", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Needs Optimization</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("your website link appears to be broken or not working")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "your website link appears to be broken or not working", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Broken Website</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("your website loads quite slowly")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "your website loads quite slowly", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Slow Loading</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("your website could be easier to navigate for potential customers")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "your website could be easier to navigate for potential customers", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Poor Navigation</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customWebsiteIssue || '').includes("your website's booking/contact forms are difficult to use")} onChange={e => setEditableLead({...editableLead, customWebsiteIssue: togglePhrase(editableLead.customWebsiteIssue, "your website's booking/contact forms are difficult to use", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Broken Forms</span>
+                        </label>
+                      </div>
                       <input 
                         type="text" 
                         value={editableLead.customWebsiteIssue || ''} 
@@ -505,19 +537,36 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                       <span className="text-slate-400 font-normal">Select preset or type custom</span>
                     </label>
                     <div className="space-y-1.5">
-                      <select 
-                        value={editableLead.customSocialIssue || ''}
-                        onChange={(e) => {
-                          if (e.target.value) setEditableLead({...editableLead, customSocialIssue: e.target.value});
-                          else setEditableLead({...editableLead, customSocialIssue: ''});
-                        }}
-                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
-                      >
-                        <option value="">🤖 Smart Auto-Generate</option>
-                        <option value="some inactive social media profiles">Inactive Profiles</option>
-                        <option value="missing links to your social media profiles">Missing Links</option>
-                        <option value="room to grow your social media presence">Room to Grow</option>
-                      </select>
+                    <div className="space-y-2 bg-slate-50 p-2 border border-slate-200 rounded text-xs">
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customSocialIssue || '').includes("some inactive social media profiles")} onChange={e => setEditableLead({...editableLead, customSocialIssue: togglePhrase(editableLead.customSocialIssue, "some inactive social media profiles", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Inactive Profiles</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customSocialIssue || '').includes("missing links to your social media profiles")} onChange={e => setEditableLead({...editableLead, customSocialIssue: togglePhrase(editableLead.customSocialIssue, "missing links to your social media profiles", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Missing Links</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customSocialIssue || '').includes("a lack of consistent social media strategy")} onChange={e => setEditableLead({...editableLead, customSocialIssue: togglePhrase(editableLead.customSocialIssue, "a lack of consistent social media strategy", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Inconsistent Strategy</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customSocialIssue || '').includes("no consistent posting schedule")} onChange={e => setEditableLead({...editableLead, customSocialIssue: togglePhrase(editableLead.customSocialIssue, "no consistent posting schedule", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Inconsistent Posting</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customSocialIssue || '').includes("low engagement on recent posts")} onChange={e => setEditableLead({...editableLead, customSocialIssue: togglePhrase(editableLead.customSocialIssue, "low engagement on recent posts", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Low Engagement</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customSocialIssue || '').includes("poor quality images/content")} onChange={e => setEditableLead({...editableLead, customSocialIssue: togglePhrase(editableLead.customSocialIssue, "poor quality images/content", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Poor Content Quality</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customSocialIssue || '').includes("missing Facebook Pixel or tracking")} onChange={e => setEditableLead({...editableLead, customSocialIssue: togglePhrase(editableLead.customSocialIssue, "missing Facebook Pixel or tracking", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Missing Tracking</span>
+                        </label>
+                      </div>
                       <input 
                         type="text" 
                         value={editableLead.customSocialIssue || ''} 
@@ -534,20 +583,24 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                       <span className="text-slate-400 font-normal">Select preset or type custom</span>
                     </label>
                     <div className="space-y-1.5">
-                      <select 
-                        value={editableLead.customService || ''}
-                        onChange={(e) => {
-                          if (e.target.value) setEditableLead({...editableLead, customService: e.target.value});
-                          else setEditableLead({...editableLead, customService: ''});
-                        }}
-                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
-                      >
-                        <option value="">🤖 Smart Auto-Generate</option>
-                        <option value="Custom Website Development">Custom Website Development</option>
-                        <option value="Website Optimization & Social Media Management">Web & Social Management</option>
-                        <option value="our Complete Digital Growth Package">Complete Digital Growth Package</option>
-                        <option value="Professional SEO & Review Management">SEO & Reviews</option>
-                      </select>
+                    <div className="space-y-2 bg-slate-50 p-2 border border-slate-200 rounded text-xs">
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customService || '').includes("Custom Website Development")} onChange={e => setEditableLead({...editableLead, customService: togglePhrase(editableLead.customService, "Custom Website Development", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Custom Website Development</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customService || '').includes("Website Optimization & Social Media Management")} onChange={e => setEditableLead({...editableLead, customService: togglePhrase(editableLead.customService, "Website Optimization & Social Media Management", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Web & Social Management</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customService || '').includes("our Complete Digital Growth Package")} onChange={e => setEditableLead({...editableLead, customService: togglePhrase(editableLead.customService, "our Complete Digital Growth Package", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>Complete Digital Growth Package</span>
+                        </label>
+                        <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={(editableLead.customService || '').includes("Professional SEO & Review Management")} onChange={e => setEditableLead({...editableLead, customService: togglePhrase(editableLead.customService, "Professional SEO & Review Management", e.target.checked)})} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                          <span>SEO & Reviews</span>
+                        </label>
+                      </div>
                       <input 
                         type="text" 
                         value={editableLead.customService || ''} 

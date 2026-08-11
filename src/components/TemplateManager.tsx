@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Plus, Edit2, Trash2, Check, FileText, Copy, ChevronDown, ChevronRight, X, Tag, RotateCcw } from 'lucide-react';
 import { EmailTemplate } from '../types';
-import { DEFAULT_EMAIL_TEMPLATES } from '../utils/templates';
+import { DEFAULT_EMAIL_TEMPLATES, DEFAULT_WHATSAPP_TEMPLATES } from '../utils/templates';
 
 interface TemplateManagerProps {
   customTemplates: EmailTemplate[];
@@ -90,7 +90,8 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplate
   };
 
   const handleResetToDefault = (tmpl: EmailTemplate) => {
-    const original = DEFAULT_EMAIL_TEMPLATES.find(d => d.id === tmpl.id);
+    const defaultList = type === 'whatsapp' ? DEFAULT_WHATSAPP_TEMPLATES : DEFAULT_EMAIL_TEMPLATES;
+    const original = defaultList.find(d => d.id === tmpl.id);
     if (original) {
       if (confirm(`Reset "${tmpl.name}" back to the original default?`)) {
         const updated = customTemplates.map(t => t.id === tmpl.id ? { ...original } : t);
@@ -119,7 +120,10 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplate
     setTimeout(() => setCopiedTag(null), 1500);
   };
 
-  const isDefault = (id: string) => DEFAULT_EMAIL_TEMPLATES.some(d => d.id === id);
+  const isDefault = (id: string) => {
+    const defaultList = type === 'whatsapp' ? DEFAULT_WHATSAPP_TEMPLATES : DEFAULT_EMAIL_TEMPLATES;
+    return defaultList.some(d => d.id === id);
+  };
 
   return (
     <div className="space-y-4">
