@@ -346,79 +346,78 @@ Return JSON in this format:
   }
 });
 
-async function startServer() {
-    // ── Background Email Campaign Queue ───────────────────────────────────────────
-    interface CampaignTask {
-      id: string;
-      leads: any[];
-      smtpSettings: any;
-      scriptUrl: string;
-      status: 'running' | 'completed' | 'failed';
-      total: number;
-      sent: number;
-      errors: number;
-      logs: string[];
-    }
+// ── Background Email Campaign Queue ───────────────────────────────────────────
+interface CampaignTask {
+  id: string;
+  leads: any[];
+  smtpSettings: any;
+  scriptUrl: string;
+  status: 'running' | 'completed' | 'failed';
+  total: number;
+  sent: number;
+  errors: number;
+  logs: string[];
+}
 
-    const campaigns: Record<string, CampaignTask> = {};
+const campaigns: Record<string, CampaignTask> = {};
 
-    app.post('/api/campaign/start', async (req, res) => {
-      const { leads, smtpSettings, scriptUrl } = req.body;
-      if (!leads || !Array.isArray(leads)) {
-        return res.status(400).json({ error: 'Invalid leads array' });
-      }
+app.post('/api/campaign/start', async (req, res) => {
+  const { leads, smtpSettings, scriptUrl } = req.body;
+  if (!leads || !Array.isArray(leads)) {
+    return res.status(400).json({ error: 'Invalid leads array' });
+  }
 
-      const campaignId = 'camp_' + Date.now();
-      campaigns[campaignId] = {
-        id: campaignId,
-        leads,
-        smtpSettings,
-        scriptUrl,
-        status: 'running',
-        total: leads.length,
-        sent: 0,
-        errors: 0,
-        logs: [`[${new Date().toLocaleTimeString()}] Campaign ${campaignId} started for ${leads.length} leads`]
-      };
+  const campaignId = 'camp_' + Date.now();
+  campaigns[campaignId] = {
+    id: campaignId,
+    leads,
+    smtpSettings,
+    scriptUrl,
+    status: 'running',
+    total: leads.length,
+    sent: 0,
+    errors: 0,
+    logs: [`[${new Date().toLocaleTimeString()}] Campaign ${campaignId} started for ${leads.length} leads`]
+  };
 
-      // Start background process (fire and forget)
-      processCampaign(campaignId).catch(console.error);
+  // Start background process (fire and forget)
+  processCampaign(campaignId).catch(console.error);
 
-      res.json({ success: true, campaignId });
-    });
+  res.json({ success: true, campaignId });
+});
 
-    app.get('/api/campaign/status/:id', (req, res) => {
-      const campaign = campaigns[req.params.id];
-      if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
-      res.json(campaign);
-    });
+app.get('/api/campaign/status/:id', (req, res) => {
+  const campaign = campaigns[req.params.id];
+  if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+  res.json(campaign);
+});
 
-    async function processCampaign(id: string) {
-      const campaign = campaigns[id];
+async function processCampaign(id: string) {
+  const campaign = campaigns[id];
+  
+  const smtpHost = campaign.smtpSettings.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = Number(campaign.smtpSettings.smtpPort || process.env.SMTP_PORT || 465);
+  const smtpUser = campaign.smtpSettings.smtpUser || process.env.SMTP_USER;
+  const smtpPass = campaign.smtpSettings.smtpPass || process.env.SMTP_PASS;
+
+  if (!smtpUser || !smtpPass) {
+    campaign.status = 'failed';
+    campaign.logs.push('[ERROR] SMTP User and App Password must be configured.');
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpPort === 465,
+    auth: { user: smtpUser, pass: smtpPass }
+  });
+  
+  for (const item of campaign.leads) {
+    try {
+      campaign.logs.push(`[${new Date().toLocaleTimeString()}] Preparing outreach email for ${item.lead.businessName} (${item.to})...`);
       
-      const smtpHost = campaign.smtpSettings.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com';
-      const smtpPort = Number(campaign.smtpSettings.smtpPort || process.env.SMTP_PORT || 465);
-      const smtpUser = campaign.smtpSettings.smtpUser || process.env.SMTP_USER;
-      const smtpPass = campaign.smtpSettings.smtpPass || process.env.SMTP_PASS;
-
-      if (!smtpUser || !smtpPass) {
-        campaign.status = 'failed';
-        campaign.logs.push('[ERROR] SMTP User and App Password must be configured.');
-        return;
-      }
-
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: { user: smtpUser, pass: smtpPass }
-      });
-      
-      for (const item of campaign.leads) {
-        try {
-          campaign.logs.push(`[${new Date().toLocaleTimeString()}] Preparing outreach email for ${item.lead.businessName} (${item.to})...`);
-          
-          const htmlContent = `
+      const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -428,63 +427,66 @@ async function startServer() {
 ${item.body.replace(/\r?\n/g, '<br/>')}
 </body>
 </html>
-          `.trim();
+      `.trim();
 
-          const mailOptions = {
-            from: `"${campaign.smtpSettings.senderName || 'NR Rvibe'}" <${smtpUser}>`,
-            to: item.to,
-            subject: item.subject,
-            text: item.body,
-            html: htmlContent
-          };
-          
-          await transporter.sendMail(mailOptions);
-          campaign.sent++;
-          campaign.logs.push(`[SUCCESS] Email successfully sent to ${item.to} via SMTP!`);
-          
-          // Update Google Sheet DB
-          if (campaign.scriptUrl) {
-            const today = new Date().toISOString().split('T')[0];
-            const followUp = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]; // Default 3 days if not passed
-            
-            const updatedLead = {
-              ...item.lead,
-              emailStatus: 'Sent',
-              leadStatus: 'Contacted',
-              lastContactDate: today,
-              followUpDate: followUp,
-              contactAttempts: (item.lead.contactAttempts || 0) + 1,
-            };
-            
-            await fetch(campaign.scriptUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'update_lead', apiKey: 'nr-revibe-secure-key-2026', lead: updatedLead })
-            });
-          }
-
-          // Delay to avoid SMTP rate limits (e.g. Google's 100/sec burst limit)
-          await new Promise(r => setTimeout(r, 2000));
-        } catch (e: any) {
-          campaign.errors++;
-          campaign.logs.push(`[ERROR] Failed to send to ${item.to}: ${e.message}`);
-          
-          if (campaign.scriptUrl) {
-             const updatedLead = {
-              ...item.lead,
-              emailStatus: 'Failed'
-            };
-            await fetch(campaign.scriptUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'update_lead', apiKey: 'nr-revibe-secure-key-2026', lead: updatedLead })
-            }).catch(() => {});
-          }
-        }
+      const mailOptions = {
+        from: `"${campaign.smtpSettings.senderName || 'NR Rvibe'}" <${smtpUser}>`,
+        to: item.to,
+        subject: item.subject,
+        text: item.body,
+        html: htmlContent
+      };
+      
+      await transporter.sendMail(mailOptions);
+      campaign.sent++;
+      campaign.logs.push(`[SUCCESS] Email successfully sent to ${item.to} via SMTP!`);
+      
+      // Update Google Sheet DB
+      if (campaign.scriptUrl) {
+        const today = new Date().toISOString().split('T')[0];
+        const followUp = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]; // Default 3 days if not passed
+        
+        const updatedLead = {
+          ...item.lead,
+          emailStatus: 'Sent',
+          leadStatus: 'Contacted',
+          lastContactDate: today,
+          followUpDate: followUp,
+          contactAttempts: (item.lead.contactAttempts || 0) + 1,
+        };
+        
+        await fetch(campaign.scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update_lead', apiKey: 'nr-revibe-secure-key-2026', lead: updatedLead })
+        });
       }
-      campaign.status = 'completed';
-      campaign.logs.push(`[SUCCESS] Campaign run complete!`);
+
+      // Delay to avoid SMTP rate limits (e.g. Google's 100/sec burst limit)
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (e: any) {
+      campaign.errors++;
+      campaign.logs.push(`[ERROR] Failed to send to ${item.to}: ${e.message}`);
+      
+      if (campaign.scriptUrl) {
+         const updatedLead = {
+          ...item.lead,
+          emailStatus: 'Failed'
+        };
+        await fetch(campaign.scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'update_lead', apiKey: 'nr-revibe-secure-key-2026', lead: updatedLead })
+        }).catch(() => {});
+      }
     }
+  }
+  campaign.status = 'completed';
+  campaign.logs.push(`[SUCCESS] Campaign run complete!`);
+}
+
+async function startServer() {
+// Move routes above startServer to make them global
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {

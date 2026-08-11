@@ -106,7 +106,16 @@ export const useLeadStore = create<LeadState>((set, get) => ({
     }
 
     try {
-      const res = await fetch(`${settings.googleAppsScriptUrl}?action=get_leads&apiKey=nr-revibe-secure-key-2026`);
+      const scriptUrl = settings.googleAppsScriptUrl;
+      const res = await fetch(`/api/leads?scriptUrl=${encodeURIComponent(scriptUrl)}`);
+      
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        alert('Error: The configured Google Apps Script URL is returning an HTML page instead of JSON. Please ensure the Web App is deployed with "Execute as: Me" and "Who has access: Anyone".');
+        set({ isConnected: false });
+        return;
+      }
+      
       const data = await res.json();
       if (data.success && Array.isArray(data.leads)) {
         get().setLeads(data.leads);
