@@ -32,7 +32,8 @@ import { useLeadStore } from '../store/useLeadStore';
 export const EmailCampaignManager: React.FC = () => {
   const { leads, handleUpdateLead: onUpdateLead, settings } = useLeadStore();
   const availableTemplates = getAvailableTemplates(settings);
-  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate>(availableTemplates[0]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(availableTemplates[0]?.id || '');
+  const currentSelectedTemplate = availableTemplates.find(t => t.id === selectedTemplateId) || availableTemplates[0];
   const [selectedLeadId, setSelectedLeadId] = useState<string>(leads[0]?.id || '');
   const [sendingProgress, setSendingProgress] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
@@ -73,8 +74,8 @@ export const EmailCampaignManager: React.FC = () => {
   const repliedLeads = leads.filter(l => l.emailStatus === 'Replied' || l.leadStatus === 'Replied');
 
   const previewTemplate = selectedLead?.approvedTemplateId
-    ? availableTemplates.find(t => t.id === selectedLead.approvedTemplateId) || selectedTemplate
-    : selectedTemplate;
+    ? availableTemplates.find(t => t.id === selectedLead.approvedTemplateId) || currentSelectedTemplate
+    : currentSelectedTemplate;
 
   const renderedPreview = selectedLead
     ? renderEmailTemplate(previewTemplate, selectedLead, settings)
@@ -86,7 +87,7 @@ export const EmailCampaignManager: React.FC = () => {
     setLogs([`[${new Date().toLocaleTimeString()}] Submitting ${approvedLeads.length} leads to Background Email Server Queue...`]);
 
     const mappedLeads = approvedLeads.map(current => {
-       const leadTemplate = availableTemplates.find(t => t.id === current.approvedTemplateId) || selectedTemplate;
+       const leadTemplate = availableTemplates.find(t => t.id === current.approvedTemplateId) || currentSelectedTemplate;
        const emailContent = renderEmailTemplate(leadTemplate, current, settings);
        return {
          lead: current,
@@ -151,7 +152,7 @@ export const EmailCampaignManager: React.FC = () => {
   };
 
   const handleOpenGmailDraft = (lead: Lead) => {
-    const rendered = renderEmailTemplate(selectedTemplate, lead, settings);
+    const rendered = renderEmailTemplate(currentSelectedTemplate, lead, settings);
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(rendered.subject)}&body=${encodeURIComponent(rendered.body)}`;
     window.open(gmailUrl, '_blank');
   };
@@ -239,7 +240,7 @@ export const EmailCampaignManager: React.FC = () => {
               <button
                 key={tmpl.id}
                 onClick={() => {
-                  setSelectedTemplate(tmpl);
+                  setSelectedTemplateId(tmpl.id);
                   if (selectedLead) onUpdateLead({ ...selectedLead, approvedTemplateId: tmpl.id });
                 }}
                 className={`w-full text-left p-4 rounded-xl border transition-all ${
@@ -531,7 +532,7 @@ export const EmailCampaignManager: React.FC = () => {
                     <button
                       key={tmpl.id}
                       onClick={() => {
-                        setSelectedTemplate(tmpl);
+                        setSelectedTemplateId(tmpl.id);
                         if (selectedLead) onUpdateLead({ ...selectedLead, approvedTemplateId: tmpl.id });
                       }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -557,7 +558,7 @@ export const EmailCampaignManager: React.FC = () => {
                 <div className="space-y-1">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Email Body Blueprint Text</span>
                   <div className="bg-white border border-slate-200 p-4 rounded-xl font-mono text-xs text-slate-800 leading-relaxed whitespace-pre-wrap shadow-sm max-h-[340px] overflow-y-auto">
-                    {selectedTemplate.body}
+                    {currentSelectedTemplate.body}
                   </div>
                 </div>
 

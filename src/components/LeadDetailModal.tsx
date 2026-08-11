@@ -23,7 +23,7 @@ import {
   Edit3
 } from 'lucide-react';
 import { Lead, AgencySettings } from '../types';
-import { renderEmailTemplate, getAvailableTemplates, DEFAULT_WHATSAPP_TEMPLATES, getTemplateVariables } from '../utils/templates';
+import { renderEmailTemplate, getAvailableTemplates, getAvailableWhatsAppTemplates, getTemplateVariables } from '../utils/templates';
 
 interface LeadDetailModalProps {
   lead: Lead | null;
@@ -54,7 +54,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   const [copied, setCopied] = useState(false);
 
   // Render template preview
-  const templatesToUse = outreachType === 'Email' ? availableTemplates : DEFAULT_WHATSAPP_TEMPLATES;
+  const availableWhatsAppTemplates = getAvailableWhatsAppTemplates(settings);
+  const templatesToUse = outreachType === 'Email' ? availableTemplates : availableWhatsAppTemplates;
   const currentTemplate = templatesToUse.find(t => t.id === selectedTemplateId) || templatesToUse[0];
   const renderedEmail = renderEmailTemplate(currentTemplate, lead, settings);
   const evaluatedVariables = getTemplateVariables(lead, settings);
@@ -575,7 +576,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     Email
                   </button>
                   <button
-                    onClick={() => { setOutreachType('WhatsApp'); setSelectedTemplateId(DEFAULT_WHATSAPP_TEMPLATES[0].id); }}
+                    onClick={() => { setOutreachType('WhatsApp'); setSelectedTemplateId(availableWhatsAppTemplates[0].id); }}
                     className={`px-3 py-1 text-[10px] font-bold rounded-md transition-colors ${outreachType === 'WhatsApp' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
                   >
                     WhatsApp
