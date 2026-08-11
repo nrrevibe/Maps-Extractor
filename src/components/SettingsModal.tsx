@@ -29,6 +29,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   const [form, setForm] = useState<AgencySettings>({ ...settings });
+  const [isLoading, setIsLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setForm({ ...settings });
+    }
+  }, [isOpen, settings]);
+
+  const handleLoadFromDB = async () => {
+    if (!form.googleAppsScriptUrl) {
+      alert('Please enter a Google Apps Script URL first.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/settings?scriptUrl=${encodeURIComponent(form.googleAppsScriptUrl)}`);
+      const data = await res.json();
+      if (data.success && data.settings && Object.keys(data.settings).length > 0) {
+        setForm(prev => ({ ...prev, ...data.settings, googleAppsScriptUrl: form.googleAppsScriptUrl }));
+        alert('Settings loaded successfully from Google Sheets!');
+      } else {
+        alert('No settings found in the database or failed to load.');
+      }
+    } catch (e) {
+      alert('Error connecting to database.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,7 +195,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div className="space-y-1 pt-2">
-              <label className="text-slate-600 font-semibold">Google Apps Script Web App URL</label>
+              <label className="text-slate-600 font-semibold flex items-center justify-between">
+                <span>Google Apps Script Web App URL</span>
+                <button 
+                  type="button" 
+                  onClick={handleLoadFromDB}
+                  disabled={isLoading || !form.googleAppsScriptUrl}
+                  className="text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2 py-1 rounded disabled:opacity-50 transition-colors"
+                >
+                  {isLoading ? 'Loading...' : 'Load from DB'}
+                </button>
+              </label>
               <input
                 type="url"
                 value={form.googleAppsScriptUrl || ''}
