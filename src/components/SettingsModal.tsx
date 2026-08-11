@@ -296,8 +296,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div className="border-t border-slate-100 pt-4 mt-4">
             <TemplateManager 
+              title="Email Templates"
+              type="email"
               customTemplates={form.customTemplates || []}
               onChange={templates => setForm({ ...form, customTemplates: templates })}
+            />
+          </div>
+
+          <div className="border-t border-slate-100 pt-4 mt-4">
+            <TemplateManager 
+              title="WhatsApp Message Templates"
+              type="whatsapp"
+              customTemplates={form.customWhatsAppTemplates || []}
+              onChange={templates => setForm({ ...form, customWhatsAppTemplates: templates })}
             />
           </div>
 

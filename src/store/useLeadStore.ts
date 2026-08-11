@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Lead, AgencySettings } from '../types';
-import { DEFAULT_EMAIL_TEMPLATES } from '../utils/templates';
+import { DEFAULT_EMAIL_TEMPLATES, DEFAULT_WHATSAPP_TEMPLATES } from '../utils/templates';
 
 interface LeadState {
   leads: Lead[];
@@ -48,6 +48,7 @@ const getDefaultSettings = (): AgencySettings => {
     sendingMode: 'Approval',
     googleAppsScriptUrl: '',
     customTemplates: [...DEFAULT_EMAIL_TEMPLATES],
+    customWhatsAppTemplates: [...DEFAULT_WHATSAPP_TEMPLATES],
   };
 
   const saved = localStorage.getItem('nr_revibe_settings');
@@ -62,6 +63,9 @@ const getDefaultSettings = (): AgencySettings => {
         customTemplates: parsed.customTemplates && parsed.customTemplates.length > 0
           ? parsed.customTemplates
           : [...DEFAULT_EMAIL_TEMPLATES],
+        customWhatsAppTemplates: parsed.customWhatsAppTemplates && parsed.customWhatsAppTemplates.length > 0
+          ? parsed.customWhatsAppTemplates
+          : [...DEFAULT_WHATSAPP_TEMPLATES],
       };
     } catch (e) {}
   }

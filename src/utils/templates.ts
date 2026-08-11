@@ -7,6 +7,13 @@ export const getAvailableTemplates = (settings: AgencySettings): EmailTemplate[]
   return settings.customTemplates;
 };
 
+export const getAvailableWhatsAppTemplates = (settings: AgencySettings): EmailTemplate[] => {
+  if (!settings.customWhatsAppTemplates || settings.customWhatsAppTemplates.length === 0) {
+    return DEFAULT_WHATSAPP_TEMPLATES;
+  }
+  return settings.customWhatsAppTemplates;
+};
+
 export const DEFAULT_EMAIL_TEMPLATES: EmailTemplate[] = [
   {
     id: 'tmpl-1',

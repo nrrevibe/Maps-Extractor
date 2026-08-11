@@ -6,6 +6,8 @@ import { DEFAULT_EMAIL_TEMPLATES } from '../utils/templates';
 interface TemplateManagerProps {
   customTemplates: EmailTemplate[];
   onChange: (templates: EmailTemplate[]) => void;
+  type?: 'email' | 'whatsapp';
+  title?: string;
 }
 
 const AVAILABLE_VARIABLES = [
@@ -31,7 +33,7 @@ const CATEGORY_OPTIONS = [
   'Follow-Up 1', 'Follow-Up 2', 'SEO', 'Custom'
 ];
 
-export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplates, onChange }) => {
+export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplates, onChange, type = 'email', title = 'Email & Message Templates' }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedTag, setCopiedTag] = useState<string | null>(null);
@@ -125,7 +127,7 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplate
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
           <FileText className="w-4 h-4 text-indigo-600" />
-          <span>Email & Message Templates</span>
+          <span>{title}</span>
           <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full">{customTemplates.length} templates</span>
         </h3>
         <button
@@ -169,7 +171,9 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplate
                         </span>
                         <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{tmpl.category}</span>
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[320px]">{tmpl.subject || '(no subject)'}</div>
+                      {type === 'email' && (
+                        <div className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[320px]">{tmpl.subject || '(no subject)'}</div>
+                      )}
                     </div>
                   </div>
 
@@ -194,8 +198,12 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplate
                 {/* Expanded Content */}
                 {isExpanded && !isEditing && (
                   <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-2">
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subject</div>
-                    <div className="text-xs text-slate-700 font-medium bg-slate-50 rounded-lg p-2 border border-slate-100">{tmpl.subject}</div>
+                    {type === 'email' && (
+                      <>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subject</div>
+                        <div className="text-xs text-slate-700 font-medium bg-slate-50 rounded-lg p-2 border border-slate-100">{tmpl.subject}</div>
+                      </>
+                    )}
                     <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-2">Body Preview</div>
                     <div className="text-xs text-slate-600 font-medium bg-slate-50 rounded-lg p-3 border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed">{tmpl.body}</div>
                     <div className="pt-2">
@@ -232,16 +240,18 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplate
                       </div>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email Subject</label>
-                      <input
-                        type="text"
-                        value={tmpl.subject}
-                        onChange={e => updateTemplate(tmpl.id, { subject: e.target.value })}
-                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
-                        placeholder="e.g. A few ideas for {{business_name}} online"
-                      />
-                    </div>
+                    {type === 'email' && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email Subject</label>
+                        <input
+                          type="text"
+                          value={tmpl.subject}
+                          onChange={e => updateTemplate(tmpl.id, { subject: e.target.value })}
+                          className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                          placeholder="e.g. A few ideas for {{business_name}} online"
+                        />
+                      </div>
+                    )}
 
                     {/* Variable Insert Toolbar */}
                     <div className="space-y-1.5">
@@ -266,7 +276,7 @@ export const TemplateManager: React.FC<TemplateManagerProps> = ({ customTemplate
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email Body</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{type === 'email' ? 'Email Body' : 'Message Body'}</label>
                       <textarea
                         ref={bodyRef}
                         value={tmpl.body}

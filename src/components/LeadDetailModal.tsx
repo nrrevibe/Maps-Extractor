@@ -473,6 +473,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     </label>
                     <div className="space-y-1.5">
                       <select 
+                        value={editableLead.customWebsiteIssue || ''}
                         onChange={(e) => {
                           if (e.target.value) setEditableLead({...editableLead, customWebsiteIssue: e.target.value});
                           else setEditableLead({...editableLead, customWebsiteIssue: ''});
@@ -504,6 +505,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     </label>
                     <div className="space-y-1.5">
                       <select 
+                        value={editableLead.customSocialIssue || ''}
                         onChange={(e) => {
                           if (e.target.value) setEditableLead({...editableLead, customSocialIssue: e.target.value});
                           else setEditableLead({...editableLead, customSocialIssue: ''});
@@ -532,6 +534,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     </label>
                     <div className="space-y-1.5">
                       <select 
+                        value={editableLead.customService || ''}
                         onChange={(e) => {
                           if (e.target.value) setEditableLead({...editableLead, customService: e.target.value});
                           else setEditableLead({...editableLead, customService: ''});

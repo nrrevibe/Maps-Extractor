@@ -122,6 +122,7 @@ export interface AgencySettings {
   smtpUser?: string;
   smtpPass?: string;
   customTemplates?: EmailTemplate[];
+  customWhatsAppTemplates?: EmailTemplate[];
 }
 
 export interface ScraperFilter {

@@ -200,6 +200,9 @@ function getLeadsFromDatabase(page = 1, limit = 0) {
         const followUpCol = aHeaders.indexOf('follow_up_date');
         const suggestedServiceCol = aHeaders.indexOf('suggested_service');
         const approvedTemplateCol = aHeaders.indexOf('approved_template_id');
+        const customWebsiteIssueCol = aHeaders.indexOf('custom_website_issue');
+        const customSocialIssueCol = aHeaders.indexOf('custom_social_issue');
+        const customServiceCol = aHeaders.indexOf('custom_service');
         aData.forEach(row => {
           const rawId = rawIdCol >= 0 ? row[rawIdCol] : '';
           if (rawId) {
@@ -210,6 +213,9 @@ function getLeadsFromDatabase(page = 1, limit = 0) {
               followUpDate: followUpCol >= 0 ? row[followUpCol] : '',
               suggestedService: suggestedServiceCol >= 0 ? row[suggestedServiceCol] : '',
               approvedTemplateId: approvedTemplateCol >= 0 ? row[approvedTemplateCol] : '',
+              customWebsiteIssue: customWebsiteIssueCol >= 0 ? row[customWebsiteIssueCol] : '',
+              customSocialIssue: customSocialIssueCol >= 0 ? row[customSocialIssueCol] : '',
+              customService: customServiceCol >= 0 ? row[customServiceCol] : ''
             };
           }
         });
@@ -271,7 +277,10 @@ function getLeadsFromDatabase(page = 1, limit = 0) {
       notes: typeof overrides.notes === 'string' && overrides.notes !== '' ? overrides.notes : (typeof lead.notes === 'string' ? lead.notes : ''),
       followUpDate: (overrides.followUpDate ? overrides.followUpDate.toString() : '') || (lead.follow_up_date ? lead.follow_up_date.toString() : ''),
       collectedDate: lead.timestamp ? new Date(lead.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      collectedBy: 'NR Rvibe Maps Extractor'
+      collectedBy: 'NR Rvibe Maps Extractor',
+      customWebsiteIssue: overrides.customWebsiteIssue || lead.custom_website_issue || '',
+      customSocialIssue: overrides.customSocialIssue || lead.custom_social_issue || '',
+      customService: overrides.customService || lead.custom_service || ''
     };
   });
 
@@ -547,7 +556,8 @@ function pushToLeadWorkspace(lead, rawId) {
     const leadHeaders = [
       'lead_id', 'raw_id', 'business_name', 'category', 'website_url', 
       'phone', 'email', 'city', 'lead_score', 'opportunity_type', 
-      'suggested_service', 'lead_status', 'email_status', 'approval_status'
+      'suggested_service', 'lead_status', 'email_status', 'approval_status',
+      'custom_website_issue', 'custom_social_issue', 'custom_service'
     ];
     
     if (activeLeadsTab.getLastRow() === 0) {
@@ -569,7 +579,10 @@ function pushToLeadWorkspace(lead, rawId) {
       lead.suggestedService || 'Website Development',
       'New',
       'Not Sent',
-      'Pending Approval'
+      'Pending Approval',
+      '',
+      '',
+      ''
     ];
     
     activeLeadsTab.appendRow(newLeadRow);
@@ -745,7 +758,10 @@ function updateRowInTab(tab, lead) {
       'twitterUrl': 'twitter_url',
       'linkedinUrl': 'linkedin_url',
       'leadScore': 'lead_score',
-      'approvedTemplateId': 'approved_template_id'
+      'approvedTemplateId': 'approved_template_id',
+      'customWebsiteIssue': 'custom_website_issue',
+      'customSocialIssue': 'custom_social_issue',
+      'customService': 'custom_service'
     };
 
     for (const [prop, col] of Object.entries(fieldMapping)) {
