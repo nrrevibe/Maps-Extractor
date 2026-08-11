@@ -88,6 +88,9 @@ export interface Lead {
   aiConversionProbability?: number;
   customTags?: string[];
   approvedTemplateId?: string;
+  customWebsiteIssue?: string;
+  customSocialIssue?: string;
+  customService?: string;
 }
 
 export interface EmailTemplate {

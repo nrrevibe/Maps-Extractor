@@ -208,8 +208,46 @@ export const DEFAULT_WHATSAPP_TEMPLATES: EmailTemplate[] = [
 ];
 
 export function getTemplateVariables(lead: Lead, settings: AgencySettings): Record<string, string> {
-  const issueText = lead.painPoint || 'lacks mobile optimization and clear contact options';
-  const recService = lead.suggestedService || 'Website Development & Social Media';
+  let issueText = lead.customWebsiteIssue;
+  if (!issueText) {
+    if (lead.websiteStatus === 'No Website' || !lead.websiteUrl || lead.websiteUrl === 'N/A') {
+      issueText = "you don't currently have a dedicated website";
+    } else if (!lead.mobileFriendly && !lead.https) {
+      issueText = 'your website lacks mobile optimization and a secure connection (HTTPS)';
+    } else if (!lead.mobileFriendly) {
+      issueText = 'your website lacks mobile optimization';
+    } else if (!lead.https) {
+      issueText = 'your website is missing a secure connection (HTTPS)';
+    } else if (lead.websiteQuality === 'Poor') {
+      issueText = 'your website could use a modern redesign to improve conversions';
+    } else {
+      issueText = 'your website could be optimized to bring in more direct leads';
+    }
+  }
+
+  let socialIssueText = lead.customSocialIssue;
+  if (!socialIssueText) {
+    if (lead.socialStatus === 'Inactive') {
+      socialIssueText = 'some inactive social media profiles';
+    } else if (lead.socialStatus === 'Missing' || (!lead.instagramUrl && !lead.facebookUrl)) {
+      socialIssueText = 'missing links to your social media profiles';
+    } else {
+      socialIssueText = 'room to grow your social media presence';
+    }
+  }
+
+  let recService = lead.customService;
+  if (!recService) {
+     if (lead.suggestedService) {
+        recService = lead.suggestedService;
+     } else if (lead.websiteStatus === 'No Website' || !lead.websiteUrl || lead.websiteUrl === 'N/A') {
+        recService = 'Custom Website Development';
+     } else if (socialIssueText.includes('inactive') || socialIssueText.includes('missing')) {
+        recService = 'Website Optimization & Social Media Management';
+     } else {
+        recService = 'our Complete Digital Growth Package';
+     }
+  }
 
   return {
     '{{business_name}}': lead.businessName || 'Business',
@@ -218,7 +256,7 @@ export function getTemplateVariables(lead: Lead, settings: AgencySettings): Reco
     '{{category}}': lead.category || 'local',
     '{{website_url}}': lead.websiteUrl || 'N/A',
     '{{website_issue}}': issueText,
-    '{{social_media_issue}}': lead.socialStatus === 'Inactive' ? 'inactive social profiles' : 'missing social links',
+    '{{social_media_issue}}': socialIssueText,
     '{{google_rating}}': (lead.rating || 4.5).toString(),
     '{{review_count}}': (lead.reviewCount || 25).toString(),
     '{{recommended_service}}': recService,

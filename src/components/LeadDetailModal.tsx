@@ -461,6 +461,100 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                   <p className="text-amber-800 text-[11px] font-bold mt-1">{lead.painPoint}</p>
                 </div>
               </div>
+
+              {isEditingDetails && (
+                <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+                  <h5 className="font-bold text-indigo-700 text-[11px] uppercase tracking-wider">Email Tag Overrides</h5>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 flex justify-between">
+                      <span>{`{{website_issue}}`}</span>
+                      <span className="text-slate-400 font-normal">Select preset or type custom</span>
+                    </label>
+                    <div className="space-y-1.5">
+                      <select 
+                        onChange={(e) => {
+                          if (e.target.value) setEditableLead({...editableLead, customWebsiteIssue: e.target.value});
+                          else setEditableLead({...editableLead, customWebsiteIssue: ''});
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
+                      >
+                        <option value="">🤖 Smart Auto-Generate</option>
+                        <option value="you don't currently have a dedicated website">No Website</option>
+                        <option value="your website lacks mobile optimization and a secure connection (HTTPS)">No Mobile & HTTPS</option>
+                        <option value="your website lacks mobile optimization">No Mobile</option>
+                        <option value="your website is missing a secure connection (HTTPS)">No HTTPS</option>
+                        <option value="your website could use a modern redesign to improve conversions">Needs Redesign</option>
+                        <option value="your website could be optimized to bring in more direct leads">Needs Optimization</option>
+                      </select>
+                      <input 
+                        type="text" 
+                        value={editableLead.customWebsiteIssue || ''} 
+                        onChange={e => setEditableLead({...editableLead, customWebsiteIssue: e.target.value})}
+                        placeholder="...or type custom text here"
+                        className="w-full bg-white border border-indigo-200 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 flex justify-between">
+                      <span>{`{{social_media_issue}}`}</span>
+                      <span className="text-slate-400 font-normal">Select preset or type custom</span>
+                    </label>
+                    <div className="space-y-1.5">
+                      <select 
+                        onChange={(e) => {
+                          if (e.target.value) setEditableLead({...editableLead, customSocialIssue: e.target.value});
+                          else setEditableLead({...editableLead, customSocialIssue: ''});
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
+                      >
+                        <option value="">🤖 Smart Auto-Generate</option>
+                        <option value="some inactive social media profiles">Inactive Profiles</option>
+                        <option value="missing links to your social media profiles">Missing Links</option>
+                        <option value="room to grow your social media presence">Room to Grow</option>
+                      </select>
+                      <input 
+                        type="text" 
+                        value={editableLead.customSocialIssue || ''} 
+                        onChange={e => setEditableLead({...editableLead, customSocialIssue: e.target.value})}
+                        placeholder="...or type custom text here"
+                        className="w-full bg-white border border-indigo-200 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 flex justify-between">
+                      <span>{`{{recommended_service}}`}</span>
+                      <span className="text-slate-400 font-normal">Select preset or type custom</span>
+                    </label>
+                    <div className="space-y-1.5">
+                      <select 
+                        onChange={(e) => {
+                          if (e.target.value) setEditableLead({...editableLead, customService: e.target.value});
+                          else setEditableLead({...editableLead, customService: ''});
+                        }}
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
+                      >
+                        <option value="">🤖 Smart Auto-Generate</option>
+                        <option value="Custom Website Development">Custom Website Development</option>
+                        <option value="Website Optimization & Social Media Management">Web & Social Management</option>
+                        <option value="our Complete Digital Growth Package">Complete Digital Growth Package</option>
+                        <option value="Professional SEO & Review Management">SEO & Reviews</option>
+                      </select>
+                      <input 
+                        type="text" 
+                        value={editableLead.customService || ''} 
+                        onChange={e => setEditableLead({...editableLead, customService: e.target.value})}
+                        placeholder="...or type custom text here"
+                        className="w-full bg-white border border-indigo-200 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
