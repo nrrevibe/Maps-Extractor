@@ -42,8 +42,20 @@ function computeLeadScore(hasWebsite, rating, reviewCount, hasPhone, hasSocial) 
 
 // ── Extract social links (from Maps Panel) ────────────────────────────────────
 function extractSocialLinks(scope) {
-  const links = Array.from(scope.querySelectorAll('a[href]'));
-  let instagram = '', facebook = '', twitter = '', linkedin = '', youtube = '';
+  let links = Array.from(scope.querySelectorAll('a[href]'));
+  
+  // Also check inside same-origin iframes (like "Web results" iframe)
+  const iframes = scope.querySelectorAll('iframe');
+  for (let i = 0; i < iframes.length; i++) {
+    try {
+      const doc = iframes[i].contentDocument || iframes[i].contentWindow?.document;
+      if (doc) {
+        links = links.concat(Array.from(doc.querySelectorAll('a[href]')));
+      }
+    } catch(e) { }
+  }
+
+  let instagram = '', facebook = '', twitter = '', linkedin = '', youtube = '', whatsapp = '';
   links.forEach(el => {
     const href = (el.href || '').toLowerCase();
     if (!instagram && href.includes('instagram.com/') && !href.includes('/p/')) instagram = el.href;
@@ -51,219 +63,35 @@ function extractSocialLinks(scope) {
     else if (!twitter && (href.includes('twitter.com/') || href.includes('x.com/')) && !href.includes('/intent/')) twitter = el.href;
     else if (!linkedin && href.includes('linkedin.com/')) linkedin = el.href;
     else if (!youtube && href.includes('youtube.com/')) youtube = el.href;
-  });
-  return { instagram, facebook, twitter, linkedin, youtube };
-}
-
-// ── Extract emails from raw HTML ──────────────────────────────────────────────
-function extractEmailsFromHtml(html, websiteDomain) {
-  const emails = new Set();
-  const EMAIL_REGEX = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
-
-  // Domains / patterns that are never valid business emails
-  const BLACKLIST_DOMAINS = [
-    'example.com', 'test.com', 'sentry.io', 'wix.com', 'wixpress.com',
-    'wordpress.com', 'wordpress.org', 'squarespace.com', 'shopify.com',
-    'webflow.io', 'weebly.com', 'godaddy.com', 'googleapis.com',
-    'googleusercontent.com', 'gstatic.com', 'w3.org', 'schema.org',
-    'facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com',
-    'youtube.com', 'tiktok.com', 'apple.com', 'microsoft.com',
-    'mozilla.org', 'cloudflare.com', 'jsdelivr.net', 'unpkg.com',
-    'bootstrapcdn.com', 'fontawesome.com', 'cdnjs.cloudflare.com',
-    'fonts.googleapis.com', 'maps.googleapis.com', 'gravatar.com',
-  ];
-  const BLACKLIST_PREFIXES = [
-    'noreply', 'no-reply', 'mailer-daemon', 'postmaster', 'hostmaster',
-    'abuse', 'webmaster', 'root', 'admin@wordpress', 'support@wix',
-  ];
-  const BLACKLIST_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.css', '.js', '.woff'];
-
-  function isValidEmail(email) {
-    const lower = email.toLowerCase();
-    const domain = lower.split('@')[1] || '';
-    const prefix = lower.split('@')[0] || '';
-    // Filter blacklisted domains
-    if (BLACKLIST_DOMAINS.some(d => domain === d || domain.endsWith('.' + d))) return false;
-    // Filter blacklisted prefixes
-    if (BLACKLIST_PREFIXES.some(p => prefix.startsWith(p))) return false;
-    // Filter emails that look like filenames (e.g. image@2x.png)
-    if (BLACKLIST_EXTENSIONS.some(ext => lower.includes(ext))) return false;
-    // Must have at least 2-char TLD
-    if (!/\.[a-z]{2,}$/i.test(domain)) return false;
-    // Prefix must be at least 2 chars
-    if (prefix.length < 2) return false;
-    return true;
-  }
-
-  // 1. Scan mailto: links (highest quality)
-  const mailtoRegex = /href=["']mailto:([^"'?]+)/gi;
-  let m;
-  while ((m = mailtoRegex.exec(html)) !== null) {
-    const email = m[1].trim().toLowerCase();
-    if (isValidEmail(email)) emails.add(email);
-  }
-
-  // 2. Scan full HTML for email patterns
-  let em;
-  while ((em = EMAIL_REGEX.exec(html)) !== null) {
-    const email = em[0].trim().toLowerCase();
-    if (isValidEmail(email)) emails.add(email);
-  }
-
-  // Sort: prioritize domain-matching emails, then common business prefixes
-  const domainClean = (websiteDomain || '').replace('www.', '').toLowerCase();
-  const BUSINESS_PREFIXES = ['info', 'contact', 'hello', 'office', 'sales', 'support', 'enquiry', 'enquiries', 'booking', 'bookings', 'appointments', 'reception', 'mail', 'team'];
-
-  const sorted = Array.from(emails).sort((a, b) => {
-    const aDomain = a.split('@')[1] || '';
-    const bDomain = b.split('@')[1] || '';
-    const aMatchesDomain = domainClean && aDomain === domainClean;
-    const bMatchesDomain = domainClean && bDomain === domainClean;
-    // Domain-matching emails first
-    if (aMatchesDomain && !bMatchesDomain) return -1;
-    if (!aMatchesDomain && bMatchesDomain) return 1;
-    // Prefer business prefixes
-    const aIsBizPrefix = BUSINESS_PREFIXES.some(p => a.startsWith(p + '@'));
-    const bIsBizPrefix = BUSINESS_PREFIXES.some(p => b.startsWith(p + '@'));
-    if (aIsBizPrefix && !bIsBizPrefix) return -1;
-    if (!aIsBizPrefix && bIsBizPrefix) return 1;
-    return 0;
+    else if (!whatsapp && (href.includes('wa.me/') || href.includes('api.whatsapp.com/send') || href.includes('whatsapp.com/'))) whatsapp = el.href;
   });
 
-  return sorted;
-}
-
-// ── Extract email directly from Google Maps panel DOM ─────────────────────────
-function extractEmailFromMapsPanel() {
-  // Method 1: data-item-id containing "email" (some business profiles show this)
-  const emailBtn = document.querySelector('button[data-item-id*="email"]');
-  if (emailBtn) {
-    const textEl = emailBtn.querySelector('.Io6YTe');
-    if (textEl) {
-      const t = textEl.textContent.trim();
-      if (t && t.includes('@')) return t.toLowerCase();
-    }
-  }
-
-  // Method 2: mailto: links anywhere in the detail panel
-  const mailtoLinks = document.querySelectorAll('a[href^="mailto:"]');
-  for (const link of mailtoLinks) {
-    const href = link.getAttribute('href') || '';
-    const email = href.replace('mailto:', '').split('?')[0].trim().toLowerCase();
-    if (email && email.includes('@')) return email;
-  }
-
-  // Method 3: Scan all visible text in the Maps info section for email patterns
-  const infoSection = document.querySelector('[role="main"]');
-  if (infoSection) {
-    const textContent = infoSection.textContent || '';
-    const match = textContent.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-    if (match) {
-      const candidate = match[0].toLowerCase();
-      // Quick sanity: exclude common false positives from Maps UI
-      if (!candidate.includes('google.com') && !candidate.includes('gstatic.com')) {
-        return candidate;
-      }
-    }
-  }
-
-  return null;
-}
-
-// ── Analyze External Website (via Background Proxy) ───────────────────────────
-async function analyzeWebsite(url) {
-  if (!url) return { platform: 'None', social: {}, broken: true, mobileFriendly: false, finalUrl: null, emails: [] };
+  // Fallback: search raw HTML for "Web results" which might hide hrefs in javascript or data attributes
   try {
-    const res = await new Promise((resolve) => {
-      chrome.runtime.sendMessage({ action: 'FETCH_WEBSITE', url }, (response) => resolve(response));
-    });
-    
-    if (!res || !res.success || !res.html) return { platform: 'Unknown', social: {}, broken: true, mobileFriendly: false, finalUrl: null, emails: [] };
-    const html = res.html;
-    
-    // Detect Platform
-    let platform = 'Custom / Unknown';
-    if (/wp-content|wp-includes|<meta name="generator" content="WordPress/i.test(html)) platform = 'WordPress';
-    else if (/cdn\.shopify\.com|shopify\.com/i.test(html)) platform = 'Shopify';
-    else if (/wix\.com|wixsite\.com/i.test(html)) platform = 'Wix';
-    else if (/squarespace\.com/i.test(html)) platform = 'Squarespace';
-    else if (/weebly\.com/i.test(html)) platform = 'Weebly';
-    else if (/webflow\.com/i.test(html)) platform = 'Webflow';
-    
-    // Detect Mobile Friendly
-    const mobileFriendly = /<meta\s+name=["']viewport["']/i.test(html);
-    
-    // Detect Social Links
-    const social = { instagram: '', facebook: '', twitter: '', linkedin: '', youtube: '' };
-    
-    // 1. Scan all href="..." attributes in the HTML for reliable link extraction
-    const hrefRegex = /href=["'](https?:\/\/[^"']+)["']/gi;
-    let match;
-    while ((match = hrefRegex.exec(html)) !== null) {
-      const linkStr = match[1];
-      const linkLow = linkStr.toLowerCase();
-      
-      if (!social.instagram && linkLow.includes('instagram.com') && !linkLow.includes('/p/')) social.instagram = linkStr;
-      else if (!social.facebook && linkLow.includes('facebook.com') && !linkLow.includes('/sharer')) social.facebook = linkStr;
-      else if (!social.twitter && (linkLow.includes('twitter.com') || linkLow.includes('x.com')) && !linkLow.includes('/intent/')) social.twitter = linkStr;
-      else if (!social.linkedin && linkLow.includes('linkedin.com') && !linkLow.includes('/share')) social.linkedin = linkStr;
-      else if (!social.youtube && linkLow.includes('youtube.com')) social.youtube = linkStr;
+    const html = (scope.body ? scope.body.innerHTML : scope.innerHTML) || '';
+    if (!instagram) { 
+      const m = html.match(/https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9_.-]+/); 
+      if (m && !m[0].includes('/explore') && !m[0].includes('/p/')) instagram = m[0]; 
     }
+    if (!facebook) { 
+      const m = html.match(/https?:\/\/(www\.)?facebook\.com\/[a-zA-Z0-9_.-]+/); 
+      if (m && !m[0].includes('/sharer') && !m[0].includes('/pages/create')) facebook = m[0]; 
+    }
+    if (!twitter) { 
+      const m = html.match(/https?:\/\/(www\.)?(twitter|x)\.com\/[a-zA-Z0-9_.-]+/); 
+      if (m && !m[0].includes('/intent/')) twitter = m[0]; 
+    }
+    if (!linkedin) { 
+      const m = html.match(/https?:\/\/(www\.)?linkedin\.com\/(in|company)\/[a-zA-Z0-9_.-]+/); 
+      if (m) linkedin = m[0]; 
+    }
+  } catch(e) {}
 
-    // 2. Fallback to raw regex matching for modern JS sites (JSON-LD, state objects, etc.)
-    if (!social.instagram) {
-      const igMatch = html.match(/https?:\/\/(?:www\.)?instagram\.com\/([a-zA-Z0-9_.-]+)/i);
-      if (igMatch && !igMatch[0].includes('/p/')) social.instagram = igMatch[0];
-    }
-    if (!social.facebook) {
-      const fbMatch = html.match(/https?:\/\/(?:www\.)?facebook\.com\/([a-zA-Z0-9_.-]+)/i);
-      if (fbMatch && !fbMatch[0].includes('/sharer') && !fbMatch[0].includes('tr?')) social.facebook = fbMatch[0];
-    }
-    if (!social.twitter) {
-      const twMatch = html.match(/https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/([a-zA-Z0-9_.-]+)/i);
-      if (twMatch && !twMatch[0].includes('/intent/')) social.twitter = twMatch[0];
-    }
-    if (!social.linkedin) {
-      const liMatch = html.match(/https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/([a-zA-Z0-9_.-]+)/i);
-      if (liMatch) social.linkedin = liMatch[0];
-    }
-    if (!social.youtube) {
-      const ytMatch = html.match(/https?:\/\/(?:www\.)?youtube\.com\/(?:c|channel|user)\/([a-zA-Z0-9_.-]+)/i);
-      if (ytMatch) social.youtube = ytMatch[0];
-    }
-
-    let domain = '';
-    try {
-      domain = new URL(res.finalUrl || url).hostname;
-    } catch (e) {}
-
-    // Extract emails from HTML
-    let extractedEmails = extractEmailsFromHtml(html, domain);
-    
-    // If no emails found on homepage, try scraping the /contact page as a fallback
-    if (extractedEmails.length === 0) {
-      try {
-        const urlObj = new URL(res.finalUrl || url);
-        urlObj.pathname = '/contact';
-        const contactUrl = urlObj.toString();
-        
-        const contactRes = await new Promise((resolve) => {
-          chrome.runtime.sendMessage({ action: 'FETCH_WEBSITE', url: contactUrl }, (response) => resolve(response));
-        });
-        
-        if (contactRes && contactRes.success && contactRes.html) {
-          extractedEmails = extractEmailsFromHtml(contactRes.html, domain);
-        }
-      } catch (e) {
-        // Silently ignore contact page errors
-      }
-    }
-    
-    return { platform, social, broken: false, mobileFriendly, finalUrl: res.finalUrl, emails: extractedEmails };
-  } catch (err) {
-    return { platform: 'Error', social: {}, broken: true, mobileFriendly: false, finalUrl: null, emails: [] };
-  }
+  return { instagram, facebook, twitter, linkedin, youtube, whatsapp };
 }
+
+// ── External Website Analysis (Delegated to Tab Harvester) ───────────────────
+// Inline analysis removed. Deep data is now handled by Tab Harvester queue via background.js
 
 // ── Extract opening hours ─────────────────────────────────────────────────────
 // From actual Google Maps DOM: .OqCZI .ZDu9vd shows "Open · Closes 9 pm"
@@ -282,14 +110,26 @@ function extractHours(scope) {
 // ── Status helpers ────────────────────────────────────────────────────────────
 async function updateStatus(status, processed, total, currentBusiness, leadsCount,
                              phoneCount = 0, websiteCount = 0, socialCount = 0) {
-  await chrome.storage.local.set({
-    extraction_status: { status, processed, total, currentBusiness, leadsCount,
-                         phoneCount, websiteCount, socialCount }
-  });
+  try {
+    await chrome.storage.local.set({
+      extraction_status: { status, processed, total, currentBusiness, leadsCount,
+                           phoneCount, websiteCount, socialCount }
+    });
+  } catch (e) {
+    // Context was invalidated (extension reloaded) — stop silently
+    if (e.message && e.message.includes('Extension context invalidated')) throw e;
+  }
 }
 async function isStopSignalled() {
-  const d = await chrome.storage.local.get('extraction_stop');
-  return Boolean(d.extraction_stop);
+  try {
+    const d = await chrome.storage.local.get('extraction_stop');
+    return Boolean(d.extraction_stop);
+  } catch (e) {
+    return true; // Treat context invalidation as a stop signal
+  }
+}
+function isContextValid() {
+  try { return !!chrome.runtime.id; } catch (e) { return false; }
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -298,7 +138,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ═══════════════════════════════════════════════════════════════════════════════
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action !== 'EXTRACT_MAPS_LEADS') return;
-  const googleAppsScriptUrl = request.googleAppsScriptUrl;
+  const apiKey = request.apiKey || 'nr-revibe-secure-key-2026';
+  const harvestSettings = request.harvestSettings || {};
   const scrapeSpeed = request.scrapeSpeed || 'safe';
   
   let delayScroll = 900;
@@ -315,27 +156,114 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const leads = [], seenPhones = new Set(), seenNames = new Set();
     await chrome.storage.local.set({ extraction_stop: false });
 
-    // ── Step 1: Scroll sidebar to load listings ─────────────────────────────
-    await updateStatus('scrolling', 0, 0, 'Scrolling to load listings...', 0);
-    const feed = document.querySelector('div[role="feed"]');
-    if (feed) {
+    // Initialize Streaming Harvester
+    try {
+      chrome.runtime.sendMessage({
+        action: 'START_HARVEST',
+        apiKey: apiKey,
+        settings: harvestSettings,
+        leads: [] // Start streaming with empty array
+      });
+    } catch (e) { console.error('Failed to start streaming harvest:', e); }
+
+    let phoneCount = 0, websiteCount = 0, socialCount = 0, stopped = false;
+    let lastProcessedTitle = '';
+    const maxMapsLeads = harvestSettings.maxMapsLeads || 500;
+    let paginationAttempts = 0;
+
+    // ── OUTER PAGINATION LOOP ──────────────────────────────────────────────────
+    while (leads.length < maxMapsLeads && !stopped && paginationAttempts < 50) {
+      if (await isStopSignalled()) { stopped = true; break; }
+      
+      // ── Step 1: Scroll sidebar to load listings ─────────────────────────────
+      await updateStatus('scrolling', leads.length, maxMapsLeads, 'Scrolling to load area listings...', leads.length);
+      const feed = document.querySelector('div[role="feed"]');
+      if (feed) {
       let attempts = 0;
-      while (document.querySelectorAll('a[href*="/maps/place/"]').length < 60 && attempts < 15) {
+      let lastCount = 0;
+      let identicalCounts = 0;
+      
+      while (identicalCounts < 5 && attempts < 150) {
         if (await isStopSignalled()) break;
         feed.scrollBy(0, 2000);
         await sleep(delayScroll);
+        
+        const currentCount = document.querySelectorAll('a[href*="/maps/place/"]').length;
+        if (currentCount === lastCount) {
+          identicalCounts++;
+        } else {
+          identicalCounts = 0;
+          lastCount = currentCount;
+        }
+        
+        // Break early if Google Maps says we reached the end
+        const endFound = Array.from(document.querySelectorAll('span')).some(s => 
+          s.textContent && s.textContent.includes("You've reached the end of the list")
+        );
+        if (endFound) break;
+        
         attempts++;
       }
     }
 
-    const listings    = document.querySelectorAll('a[href*="/maps/place/"]');
-    const totalProcess = Math.min(listings.length, 65);
-    console.log(`[Extractor] ${listings.length} listings found, processing ${totalProcess}`);
+      const listings    = document.querySelectorAll('a[href*="/maps/place/"]');
+      
+      // Filter to only unprocessed listings
+      const unprocessedListings = Array.from(listings).filter(link => {
+        const parent = link.closest('div[role="feed"] > div') || link.parentElement;
+        const nameEl = parent.querySelector('.qBF1Pd') || parent.querySelector('.fontHeadlineSmall');
+        if (!nameEl) return false;
+        return !seenNames.has(nameEl.textContent.trim().toLowerCase());
+      });
 
-    let phoneCount = 0, websiteCount = 0, socialCount = 0, stopped = false;
-    let lastProcessedTitle = '';
+      console.log(`[Extractor] ${unprocessedListings.length} new listings found in this area.`);
+      
+      if (unprocessedListings.length === 0) {
+        // No more new listings in this area, try to paginate!
+        await updateStatus('scrolling', leads.length, maxMapsLeads, 'Looking for next area...', leads.length);
+        
+        // 1. Look for "Search this area" button
+        const buttons = Array.from(document.querySelectorAll('button span'));
+        const searchBtnSpan = buttons.find(s => s.textContent && s.textContent.includes('Search this area'));
+        
+        if (searchBtnSpan && searchBtnSpan.closest('button')) {
+          console.log('[Extractor] Clicking "Search this area" button');
+          searchBtnSpan.closest('button').click();
+          await sleep(2500);
+          paginationAttempts++;
+          continue;
+        } else {
+          console.log('[Extractor] Panning map to find more leads...');
+          // 2. Try artificial panning of the map
+          const canvas = document.querySelector('canvas');
+          if (canvas) {
+            const rect = canvas.getBoundingClientRect();
+            // Dispatch mouse events to pan
+            const mousedown = new MouseEvent('mousedown', { bubbles: true, clientX: rect.left + rect.width/2, clientY: rect.top + rect.height/2 });
+            const mousemove = new MouseEvent('mousemove', { bubbles: true, clientX: rect.left + rect.width/2 + 200, clientY: rect.top + rect.height/2 + 200 });
+            const mouseup = new MouseEvent('mouseup', { bubbles: true });
+            canvas.dispatchEvent(mousedown);
+            await sleep(100);
+            canvas.dispatchEvent(mousemove);
+            await sleep(100);
+            canvas.dispatchEvent(mouseup);
+            await sleep(3000); // Wait for results to update
+            paginationAttempts++;
+            continue;
+          } else {
+            console.warn('[Extractor] No more leads and cannot pan map. Stopping.');
+            break;
+          }
+        }
+      }
 
-    for (let i = 0; i < totalProcess; i++) {
+      for (let i = 0; i < unprocessedListings.length; i++) {
+        if (leads.length >= maxMapsLeads) break;
+      // Stop immediately if context was invalidated (extension reloaded)
+      if (!isContextValid()) {
+        console.warn('[NR Rvibe] Extension context invalidated — stopping scraper.');
+        stopped = true; break;
+      }
       if (await isStopSignalled()) { stopped = true; break; }
       const link = listings[i];
       try {
@@ -358,10 +286,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const reviewsEl   = parent.querySelector('.UY7F9');
         const reviewCount = parseInt((reviewsEl?.textContent || '').replace(/\D/g, '')) || 0;
 
-        await updateStatus('running', i, totalProcess, businessName, leads.length,
+        await updateStatus('running', leads.length + 1, maxMapsLeads, businessName, leads.length,
                            phoneCount, websiteCount, socialCount);
 
         // ── Click ─────────────────────────────────────────────────────────────
+        try { link.scrollIntoView({ block: 'center' }); } catch(e) {}
+        await sleep(150);
         link.click();
 
         // ── Step 2: Wait for h1 to MATCH this business name ──────────────────
@@ -395,6 +325,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
         // Retry click once if still no match
         if (!panelReady) {
+          try { link.scrollIntoView({ block: 'center' }); } catch(e) {}
+          await sleep(150);
           link.click();
           for (let a = 0; a < 24; a++) {
             if (await isStopSignalled()) break;
@@ -419,7 +351,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         // ── Step 3: Wait for body detail elements to render ───────────────────
         let websiteUrl = '', phone = 'N/A', address = 'N/A', hours = 'N/A';
-        let instagram = '', facebook = '', twitter = '', linkedin = '', youtube = '';
+        let instagram = '', facebook = '', twitter = '', linkedin = '', youtube = '', whatsapp = '';
 
         if (panelReady) {
           // Poll until at least one detail element appears (up to 4 seconds)
@@ -429,6 +361,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 document.querySelector('a[data-item-id="authority"]') ||
                 document.querySelector('button[data-item-id="address"]')) break;
           }
+          
+          // ── Scroll the detail panel to load lazy-loaded data (like Web Results/Social) ──
+          let detailPanel = null;
+          const h1s = Array.from(document.querySelectorAll('h1'));
+          const targetH1 = h1s.find(h => isNameMatch(h.textContent.trim(), businessName)) || document.querySelector('h1.DUwDvf');
+          if (targetH1) {
+             detailPanel = targetH1.closest('.m6QErb[tabindex="-1"]') || targetH1.closest('.m6QErb.DxyBCb.kA9KIf.dS8AEf.XiKgde') || targetH1.closest('[role="main"]');
+          }
+          if (!detailPanel) detailPanel = document.querySelector('.m6QErb.DxyBCb.kA9KIf.dS8AEf.XiKgde') || document.querySelector('[role="main"]');
+          
+          if (detailPanel) {
+            detailPanel.scrollBy(0, 3000);
+            await sleep(delayScroll > 300 ? 500 : delayScroll);
+            detailPanel.scrollBy(0, 3000);
+            // Wait slightly longer after scrolling for iframes to render
+            await sleep(delayScroll > 300 ? 800 : delayScroll * 2);
+          }
+          
           await sleep(delayRender); // render buffer
 
           // Phone: button[data-item-id="phone:tel:XXXXXXXXXX"]
@@ -443,18 +393,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           const wsEl = document.querySelector('a[data-item-id="authority"]');
           websiteUrl = wsEl?.href || '';
 
-          // Address: button[data-item-id="address"] inner .Io6YTe
-          const addrBtn = document.querySelector('button[data-item-id="address"]');
+          // Address: multiple fallback selectors
+          const addrBtn = document.querySelector('button[data-item-id="address"]') || 
+                          document.querySelector('button[aria-label^="Address:"]') ||
+                          document.querySelector('button[data-tooltip="Copy address"]');
           if (addrBtn) {
             address = addrBtn.querySelector('.Io6YTe')?.textContent?.trim() ||
+                      addrBtn.getAttribute('aria-label')?.replace('Address:', '')?.trim() ||
                       addrBtn.textContent?.trim() || 'N/A';
+          }
+          
+          if (address === 'N/A') {
+            // Fallback to the list item text (parent)
+            const parentText = parent.textContent || '';
+            const match = parentText.match(/·\s([^·]+)$/);
+            if (match) address = match[1].trim();
           }
 
           // Hours
           hours = extractHours(document);
 
           // Social links
-          ({ instagram, facebook, twitter, linkedin, youtube } = extractSocialLinks(document));
+          ({ instagram, facebook, twitter, linkedin, youtube, whatsapp } = extractSocialLinks(document));
 
           // Category from panel
           const pCatEl = document.querySelector('[role="main"] button.DkEaL');
@@ -471,91 +431,60 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const { city, state, country } = parseCityState(address);
-        // ── Analyze External Website for deeper insights ──────────────────────
-        let websitePlatform = 'None';
-        let isBroken = false;
+        // ── Analyze External Website for deeper insights (DEFERRED TO HARVESTER) ──
+        let websitePlatform = 'N/A';
         let isMobileFriendly = true;
-        let finalHttps = false;
 
-        if (websiteUrl) {
-          const siteAnalysis = await analyzeWebsite(websiteUrl);
-          websitePlatform = siteAnalysis.platform;
-          isBroken = siteAnalysis.broken;
-          isMobileFriendly = siteAnalysis.mobileFriendly;
-          finalHttps = siteAnalysis.finalUrl ? siteAnalysis.finalUrl.startsWith('https') : websiteUrl.startsWith('https');
-          
-          // Only overwrite if the Maps panel didn't already have them
-          if (!instagram && siteAnalysis.social.instagram) instagram = siteAnalysis.social.instagram;
-          if (!facebook && siteAnalysis.social.facebook) facebook = siteAnalysis.social.facebook;
-          if (!twitter && siteAnalysis.social.twitter) twitter = siteAnalysis.social.twitter;
-          if (!linkedin && siteAnalysis.social.linkedin) linkedin = siteAnalysis.social.linkedin;
-          if (!youtube && siteAnalysis.social.youtube) youtube = siteAnalysis.social.youtube;
-        }
-
-        const hasSocial = !!(instagram || facebook || twitter);
-        const { score, priority } = computeLeadScore(!!websiteUrl, rating, reviewCount, phone !== 'N/A', hasSocial);
+        const hasPhone    = phone !== 'N/A';
+        const hasWebsite  = !!websiteUrl;
+        const hasSocial   = !!(instagram || facebook || linkedin || whatsapp);
+        const { score, priority } = computeLeadScore(hasWebsite, rating, reviewCount, hasPhone, hasSocial);
 
         seenNames.add(businessName.toLowerCase());
         if (phone && phone !== 'N/A') seenPhones.add(phone);
 
-        // ── Multi-source email extraction pipeline ────────────────────────────
+        // We defer deep email extraction to the Tab Harvester, but log what we found in Maps directly.
         let bestEmail = 'N/A';
-        let emailSource = 'Maps';
+        let emailSource = 'Pending Harvest';
         let emailType = 'Missing';
         let emailConfidence = 0;
 
-        // Priority 1: Email from Google Maps panel DOM (confidence 95)
-        const mapsEmail = extractEmailFromMapsPanel();
-        if (mapsEmail) {
-          bestEmail = mapsEmail;
-          emailSource = 'Maps';
-          emailType = 'Business';
-          emailConfidence = 95;
-        }
-
-        // Priority 2-4: Emails extracted from website HTML
-        if (bestEmail === 'N/A' && websiteUrl && !isBroken) {
-          // siteAnalysis.emails is populated by analyzeWebsite → extractEmailsFromHtml
-          const siteEmails = (typeof siteAnalysis !== 'undefined' && siteAnalysis.emails) ? siteAnalysis.emails : [];
-          if (siteEmails.length > 0) {
-            const topEmail = siteEmails[0];
-            const websiteDomain = (() => { try { return new URL(websiteUrl).hostname.replace('www.', '').toLowerCase(); } catch(e) { return ''; } })();
-            const emailDomain = topEmail.split('@')[1] || '';
-            const matchesDomain = websiteDomain && emailDomain === websiteDomain;
-
-            bestEmail = topEmail;
-            emailSource = 'Website';
-            emailType = matchesDomain ? 'Business' : 'Generic';
-            // Check if it came from a mailto: link vs regex
-            emailConfidence = matchesDomain ? 85 : 60;
+        // Try to find email in raw maps description text
+        try {
+          const bodyText = document.body ? document.body.innerText : '';
+          const emailMatch = bodyText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+          if (emailMatch && emailMatch[0]) {
+            // Avoid grabbing google emails or image artifact names
+            const e = emailMatch[0].toLowerCase();
+            if (!e.includes('sentry.io') && !e.includes('@google.com') && !e.includes('.png') && !e.includes('.jpg')) {
+              bestEmail = e;
+              emailSource = 'Google Maps Detail';
+              emailType = 'Maps Description';
+              emailConfidence = 70;
+            }
           }
-        }
+        } catch(e) {}
 
-        // Priority 5: Fallback — common prefix guess (confidence 40)
-        if (bestEmail === 'N/A' && websiteUrl) {
-          try {
-            bestEmail = 'info@' + new URL(websiteUrl).hostname.replace('www.', '');
-            emailSource = 'Manual';
-            emailType = 'Generic';
-            emailConfidence = 40;
-          } catch(e) {}
-        }
-
-        leads.push({
+        const newLead = {
           id: 'MAPS-' + Math.floor(1000 + Math.random() * 9000),
           businessName, category, googleMapsUrl: link.href,
           websiteUrl, 
-          websiteStatus: websiteUrl ? (isBroken ? 'Broken' : 'Active') : 'No Website',
+          websiteStatus: websiteUrl ? 'Pending Harvest' : 'No Website',
           websiteTechnology: websitePlatform,
-          websiteQuality: websiteUrl ? (isBroken ? 'Poor' : 'Average') : 'N/A',
-          https: websiteUrl ? finalHttps : false,
+          websiteQuality: websiteUrl ? 'Pending Harvest' : 'N/A',
+          https: websiteUrl ? true : false,
           mobileFriendly: isMobileFriendly, phone, hours,
           email: bestEmail, emailType: emailType,
           emailSource: emailSource, emailVerified: false,
           emailConfidenceScore: emailConfidence,
           address, city, state, country, rating, reviewCount,
-          instagramUrl: instagram, facebookUrl: facebook,
-          twitterUrl: twitter, linkedinUrl: linkedin, youtubeUrl: youtube,
+          instagramUrl: instagram || undefined,
+          facebookUrl: facebook || undefined,
+          twitterUrl: twitter || undefined,
+          linkedinUrl: linkedin || undefined,
+          youtubeUrl: youtube || undefined,
+          whatsappUrl: whatsapp || undefined,
+          socialStatus: hasSocial ? 'Active' : 'Missing',
           leadScore: score, leadPriority: priority,
           opportunityType: websiteUrl ? 'Redesign' : 'New Website',
           painPoint: websiteUrl ? 'Mobile responsiveness / SEO' : 'No online presence',
@@ -563,48 +492,46 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           leadStatus: 'New', emailStatus: 'Not Sent',
           collectedDate: new Date().toISOString().split('T')[0],
           collectedBy: 'NR Rvibe Maps Extractor'
-        });
+        };
+
+        leads.push(newLead);
+        seenNames.add(businessName.toLowerCase());
+        if (phone && phone !== 'N/A') seenPhones.add(phone);
+
+        // Stream lead to background harvester
+        try {
+          chrome.runtime.sendMessage({ action: 'ENQUEUE_LEAD', lead: newLead });
+        } catch (e) { console.warn('Failed to enqueue:', e.message); }
 
         if (phone && phone !== 'N/A') phoneCount++;
         if (websiteUrl) websiteCount++;
         if (hasSocial)  socialCount++;
 
-        await updateStatus('running', i + 1, totalProcess, businessName, leads.length,
+        await updateStatus('running', leads.length, maxMapsLeads, businessName, leads.length,
                            phoneCount, websiteCount, socialCount);
       } catch (err) {
-        console.error(`[Error i=${i}]`, err.message, err);
+        if (err.message && err.message.includes('Extension context invalidated')) {
+          console.warn('[NR Rvibe] Extension context invalidated during iteration — stopping gracefully.');
+          stopped = true;
+          break;
+        }
+        console.error(`[Error]`, err.message, err);
       }
-    }
+    } // end for loop over unprocessedListings
+  } // end OUTER PAGINATION LOOP
 
     // ── Sync ──────────────────────────────────────────────────────────────────
     if (stopped) {
       await chrome.storage.local.set({ stopped_leads: leads });
-      await updateStatus('stopped', leads.length, totalProcess,
+      try { chrome.runtime.sendMessage({ action: 'COLLECTOR_FINISHED' }); } catch (e) {}
+      await updateStatus('stopped', leads.length, maxMapsLeads,
                          `Stopped — ${leads.length} leads saved`, leads.length,
                          phoneCount, websiteCount, socialCount);
     } else {
       await chrome.storage.local.set({ stopped_leads: [] });
-      await updateStatus('syncing', leads.length, totalProcess,
-                         'Uploading to Sheets & CRM...', leads.length,
-                         phoneCount, websiteCount, socialCount);
-      try {
-        await new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({
-            action: 'SYNC_LEADS',
-            googleAppsScriptUrl: googleAppsScriptUrl,
-            leads: leads
-          }, (response) => {
-            if (chrome.runtime.lastError) {
-              console.error('Background sync failed:', chrome.runtime.lastError);
-              resolve(); // Continue even if background connection drops
-            } else {
-              resolve();
-            }
-          });
-        });
-      } catch (e) { console.error('Failed to send SYNC_LEADS message:', e); }
-      await updateStatus('completed', totalProcess, totalProcess,
-                         `Done! ${leads.length} leads synced`, leads.length,
+      try { chrome.runtime.sendMessage({ action: 'COLLECTOR_FINISHED' }); } catch (e) {}
+      await updateStatus('completed', leads.length, maxMapsLeads,
+                         `Maps Scrape Done! Finishing background harvest...`, leads.length,
                          phoneCount, websiteCount, socialCount);
     }
     sendResponse({ status: 'SUCCESS', count: leads.length });

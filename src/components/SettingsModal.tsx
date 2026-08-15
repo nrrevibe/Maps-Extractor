@@ -38,17 +38,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [isOpen, settings]);
 
   const handleLoadFromDB = async () => {
-    if (!form.googleAppsScriptUrl) {
-      alert('Please enter a Google Apps Script URL first.');
-      return;
-    }
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/settings?scriptUrl=${encodeURIComponent(form.googleAppsScriptUrl)}`);
+      const res = await fetch('/api/settings');
       const data = await res.json();
       if (data.success && data.settings && Object.keys(data.settings).length > 0) {
-        setForm(prev => ({ ...prev, ...data.settings, googleAppsScriptUrl: form.googleAppsScriptUrl }));
-        alert('Settings loaded successfully from Google Sheets!');
+        setForm(prev => ({ ...prev, ...data.settings }));
+        alert('Settings loaded successfully from Database!');
       } else {
         alert('No settings found in the database or failed to load.');
       }
@@ -72,7 +68,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="flex justify-between items-center pb-4 border-b border-slate-100">
           <div className="flex items-center space-x-2">
             <Settings className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-lg font-bold text-slate-900">NR Rvibe Agency & Google Sheets Settings</h2>
+            <h2 className="text-lg font-bold text-slate-900">NR Rvibe Agency Settings</h2>
           </div>
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-700 bg-slate-100 rounded-lg transition-colors">
             <X className="w-5 h-5" />
@@ -162,24 +158,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Google Sheets Sync Settings */}
+          {/* Database Sync Settings */}
           <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100 space-y-3">
             <div className="flex items-center space-x-2 text-emerald-800 font-bold">
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Google Sheets Connection</span>
+              <Settings className="w-4 h-4 text-emerald-600" />
+              <span>Database Connection & Sending Mode</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-slate-600 font-semibold">Sheet Name</label>
-                <input
-                  type="text"
-                  value={form.sheetName}
-                  onChange={e => setForm({ ...form, sheetName: e.target.value })}
-                  className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800 font-medium"
-                />
-              </div>
-
               <div className="space-y-1">
                 <label className="text-slate-600 font-semibold">Sending Mode</label>
                 <select
@@ -192,28 +178,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <option value="Campaign">Campaign Mode</option>
                 </select>
               </div>
-            </div>
-
-            <div className="space-y-1 pt-2">
-              <label className="text-slate-600 font-semibold flex items-center justify-between">
-                <span>Google Apps Script Web App URL</span>
+              
+              <div className="flex items-end pb-1">
                 <button 
                   type="button" 
                   onClick={handleLoadFromDB}
-                  disabled={isLoading || !form.googleAppsScriptUrl}
-                  className="text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2 py-1 rounded disabled:opacity-50 transition-colors"
+                  disabled={isLoading}
+                  className="text-sm font-semibold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors w-full"
                 >
-                  {isLoading ? 'Loading...' : 'Load from DB'}
+                  {isLoading ? 'Loading...' : 'Load Settings from DB'}
                 </button>
-              </label>
-              <input
-                type="url"
-                value={form.googleAppsScriptUrl || ''}
-                onChange={e => setForm({ ...form, googleAppsScriptUrl: e.target.value })}
-                placeholder="https://script.google.com/macros/s/.../exec"
-                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-800 font-medium"
-              />
-              <span className="text-[10px] text-slate-400">Pastes the deployed Web App URL here to sync extension scans & CRM table leads directly to Google Sheets database.</span>
+              </div>
             </div>
           </div>
 

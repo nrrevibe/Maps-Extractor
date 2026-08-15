@@ -103,16 +103,10 @@ export const ExtensionSimulator: React.FC<ExtensionSimulatorProps> = ({
 </html>`;
 
       // popup.js
-      const popupJs = `const GOOGLE_APPS_SCRIPT_URL = "${settings.googleAppsScriptUrl || 'https://script.google.com/macros/s/AKfycbz_placeholder_url_here/exec'}";
-
+      const popupJs = `
 document.getElementById('extractBtn').addEventListener('click', async () => {
   const statusBox = document.getElementById('statusBox');
   const extractBtn = document.getElementById('extractBtn');
-  
-  if (!GOOGLE_APPS_SCRIPT_URL || GOOGLE_APPS_SCRIPT_URL.includes('placeholder_url_here')) {
-    alert('Please configure your Google Apps Script Web App URL in settings before packaging, or replace GOOGLE_APPS_SCRIPT_URL constant inside popup.js.');
-    return;
-  }
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || !tab.url || !tab.url.includes('/maps') || !tab.url.includes('google.')) {
@@ -134,21 +128,10 @@ document.getElementById('extractBtn').addEventListener('click', async () => {
       return;
     }
 
-    statusBox.innerText = \`Found \${response.leads.length} leads. Syncing to Google Sheets & CRM...\`;
+    statusBox.innerText = \`Found \${response.leads.length} leads. Syncing to CRM...\`;
 
     try {
-      // 1. Sync to Google Sheets
-      await fetch(GOOGLE_APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'sync_leads',
-          leads: response.leads
-        })
-      });
-
-      // 2. Sync to local React CRM Dashboard in real-time
+      // Sync to local React CRM Dashboard in real-time
       try {
         await fetch('http://localhost:8081/api/leads', {
           method: 'POST',
@@ -160,7 +143,7 @@ document.getElementById('extractBtn').addEventListener('click', async () => {
       }
 
       statusBox.className = 'status success';
-      statusBox.innerText = \`Successfully synced \${response.leads.length} leads to Google Sheets & CRM!\`;
+      statusBox.innerText = \`Successfully synced \${response.leads.length} leads to CRM!\`;
     } catch (err: any) {
       alert('Error syncing: ' + err.message);
       statusBox.className = 'status';
@@ -208,7 +191,6 @@ async function isStopSignalled() {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'EXTRACT_MAPS_LEADS') {
-    const googleAppsScriptUrl = request.googleAppsScriptUrl;
     (async () => {
       const leads = [];
       await chrome.storage.local.set({ extraction_stop: false }); // Reset stop signal
@@ -396,17 +378,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (stopped) {
         await updateStatus('stopped', leads.length, totalToProcess, 'Stopped by User', leads.length, phoneCount, websiteCount, socialCount);
       } else {
-        await updateStatus('syncing', leads.length, totalToProcess, 'Syncing leads to CRM & Sheets...', leads.length, phoneCount, websiteCount, socialCount);
-        try {
-          await fetch(googleAppsScriptUrl, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'sync_leads', leads })
-          });
-        } catch(e) {
-          console.error('Sheets sync error:', e);
-        }
+        await updateStatus('syncing', leads.length, totalToProcess, 'Syncing leads to CRM...', leads.length, phoneCount, websiteCount, socialCount);
 
         // POST to local CRM dashboard
         try {

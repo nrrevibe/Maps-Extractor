@@ -3,7 +3,8 @@ import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { calculateLeadScore } from './src/utils/scoring';
-import { Lead } from './src/types';
+import dbConnect from './src/lib/db';
+import { Lead } from './src/models/Lead';
 import nodemailer from 'nodemailer';
 
 dotenv.config();
@@ -25,136 +26,111 @@ app.use((req, res, next) => {
   next();
 });
 
-// Get leads via proxy
+import { Settings } from './src/models/Settings';
+
+// Get leads via DB
 app.get('/api/leads', async (req, res) => {
-  const { scriptUrl, page, limit } = req.query;
-  if (!scriptUrl || typeof scriptUrl !== 'string') {
-    return res.json({ success: true, leads: [] });
-  }
+  const { page = 1, limit = 50 } = req.query;
   try {
-    let url = `${scriptUrl}?action=get_leads&apiKey=nr-revibe-secure-key-2026`;
-    if (page) url += `&page=${page}`;
-    if (limit) url += `&limit=${limit}`;
-    const response = await fetch(url);
-    const data = await response.json();
-    res.json(data);
+    await dbConnect();
+    const skip = (Number(page) - 1) * Number(limit);
+    const leads = await Lead.find().sort({ createdAt: -1 }).skip(skip).limit(Number(limit));
+    const total = await Lead.countDocuments();
+    res.json({ success: true, leads, total, page: Number(page), pages: Math.ceil(total / Number(limit)) });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-// Fuzzy business name match — treats 'Amarr Salon | Unisex Salon' == 'Amarr Salon'
-function fuzzyNameMatch(a: string, b: string): boolean {
-  if (!a || !b) return false;
-  const n1 = a.toLowerCase().replace(/[|•,]/g, ' ').replace(/\s+/g, ' ').trim();
-  const n2 = b.toLowerCase().replace(/[|•,]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (n1 === n2) return true;
-  if (n1.includes(n2) || n2.includes(n1)) return true;
-  const w1 = n1.split(' ')[0];
-  const w2 = n2.split(' ')[0];
-  if (w1 && w2 && w1 === w2 && w1.length > 3) return true;
-  return false;
-}
-
-// Post leads from Chrome Extension
+// Bulk Insert/Update leads via Extension Push
 app.post('/api/leads', async (req, res) => {
-  const { leads } = req.body;
-  const { scriptUrl } = req.query;
-  
+  const { leads, settings } = req.body;
   if (!leads || !Array.isArray(leads)) {
     return res.status(400).json({ success: false, error: 'Invalid leads array' });
   }
 
-  const processed: Lead[] = [];
-  leads.forEach((l: any) => {
-    const audit = calculateLeadScore(l);
-    processed.push({
-      ...l,
-      leadScore: audit.score,
-      leadPriority: audit.priority,
-      opportunityType: audit.opportunityType,
-      painPoint: audit.painPoints.join(' • ') || 'Digital presence refresh recommended',
-      suggestedService: audit.suggestedService,
-    });
-  });
+  try {
+    await dbConnect();
+    let added = 0;
+    let duplicatesSkipped = 0;
 
-  if (scriptUrl && typeof scriptUrl === 'string') {
-    try {
-      console.log('Sending leads to Google Apps Script URL:', scriptUrl);
-      const resData = await fetch(scriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync_leads', apiKey: 'nr-revibe-secure-key-2026', leads: processed })
-      });
-      const text = await resData.text();
-      console.log('Google Apps Script Response Status:', resData.status);
-      console.log('Google Apps Script Response Text:', text);
-    } catch(e: any) {
-      console.error('Failed to sync to Google Apps Script:', e.message);
+    for (const lead of leads) {
+      // Basic dedup by ID or Phone or Business Name based on your DB logic
+      const existing = await Lead.findOne({ id: lead.id });
+      if (existing) {
+        if (settings?.updateExisting) {
+          await Lead.updateOne({ id: lead.id }, { $set: lead });
+          added++;
+        } else {
+          duplicatesSkipped++;
+        }
+      } else {
+        await Lead.create(lead);
+        added++;
+      }
     }
-  }
 
-  res.json({ success: true, count: processed.length, leads: processed });
+    res.json({ success: true, data: { added, duplicatesSkipped } });
+  } catch(e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
-// Update a lead via proxy
+// Update a lead via DB
 app.put('/api/leads/:id', async (req, res) => {
   const { id } = req.params;
   const { lead } = req.body;
-  const { scriptUrl } = req.query;
   
   if (!lead) return res.status(400).json({ success: false, error: 'Missing lead body' });
 
-  if (scriptUrl && typeof scriptUrl === 'string') {
-    try {
-      const response = await fetch(scriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'update_lead', apiKey: 'nr-revibe-secure-key-2026', lead: { ...lead, id } })
-      });
-      const data = await response.json();
-      return res.json(data);
-    } catch(e: any) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  try {
+    await dbConnect();
+    const updated = await Lead.findOneAndUpdate({ id }, { $set: lead }, { new: true });
+    if (!updated) return res.status(404).json({ success: false, error: 'Lead not found' });
+    res.json({ success: true, lead: updated });
+  } catch(e: any) {
+    res.status(500).json({ success: false, error: e.message });
   }
-  res.json({ success: true, message: `No scriptUrl provided.` });
 });
 
-// Delete a local lead and sync to Google Sheets
+// Delete a local lead
 app.delete('/api/leads/:id', async (req, res) => {
   const { id } = req.params;
-  const { scriptUrl } = req.query;
-
-  // If scriptUrl is provided, delete row from Google Sheets as well
-  if (scriptUrl && typeof scriptUrl === 'string') {
-    try {
-      await fetch(scriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete_lead',
-          apiKey: 'nr-revibe-secure-key-2026',
-          leadId: id,
-        }),
-      });
-    } catch (e: any) {
-      console.error('Failed to delete lead from Google Sheets:', e.message);
-    }
+  try {
+    await dbConnect();
+    await Lead.findOneAndDelete({ id });
+    res.json({ success: true, message: `Lead ${id} deleted.` });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
   }
+});
 
-  res.json({ success: true, message: `Lead ${id} delete request sent.` });
+// Bulk Delete leads
+app.post('/api/leads/bulk-delete', async (req, res) => {
+  const { ids } = req.body;
+  if (!ids || !Array.isArray(ids)) {
+    return res.status(400).json({ success: false, error: 'Invalid ids array' });
+  }
+  
+  try {
+    await dbConnect();
+    const result = await Lead.deleteMany({ id: { $in: ids } });
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // Get Settings
 app.get('/api/settings', async (req, res) => {
-  const { scriptUrl } = req.query;
-  if (!scriptUrl || typeof scriptUrl !== 'string') return res.json({ success: true, settings: {} });
-  
   try {
-    const response = await fetch(`${scriptUrl}?action=get_settings&apiKey=nr-revibe-secure-key-2026`);
-    const data = await response.json();
-    res.json(data);
+    await dbConnect();
+    const settingsDocs = await Settings.find();
+    const settings = settingsDocs.reduce((acc, doc) => {
+      acc[doc.key] = doc.value;
+      return acc;
+    }, {} as any);
+    res.json({ success: true, settings });
   } catch (e: any) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -163,22 +139,23 @@ app.get('/api/settings', async (req, res) => {
 // Save Settings
 app.post('/api/settings', async (req, res) => {
   const { settings } = req.body;
-  const { scriptUrl } = req.query;
-  
-  if (scriptUrl && typeof scriptUrl === 'string') {
-    try {
-      const response = await fetch(scriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_settings', settings })
-      });
-      const data = await response.json();
-      return res.json(data);
-    } catch(e: any) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
+  if (!settings || typeof settings !== 'object') {
+    return res.status(400).json({ success: false, error: 'Invalid settings object' });
   }
-  res.json({ success: true });
+
+  try {
+    await dbConnect();
+    for (const [key, value] of Object.entries(settings)) {
+      await Settings.findOneAndUpdate(
+        { key },
+        { key, value },
+        { upsert: true, new: true }
+      );
+    }
+    res.json({ success: true });
+  } catch(e: any) {
+    res.status(500).json({ success: false, error: e.message });
+  }
 });
 
 // Send Email via SMTP using App Password
@@ -441,25 +418,24 @@ ${item.body.replace(/\r?\n/g, '<br/>')}
       campaign.sent++;
       campaign.logs.push(`[SUCCESS] Email successfully sent to ${item.to} via SMTP!`);
       
-      // Update Google Sheet DB
-      if (campaign.scriptUrl) {
-        const today = new Date().toISOString().split('T')[0];
-        const followUp = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]; // Default 3 days if not passed
-        
-        const updatedLead = {
-          ...item.lead,
-          emailStatus: 'Sent',
-          leadStatus: 'Contacted',
-          lastContactDate: today,
-          followUpDate: followUp,
-          contactAttempts: (item.lead.contactAttempts || 0) + 1,
-        };
-        
-        await fetch(campaign.scriptUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'update_lead', apiKey: 'nr-revibe-secure-key-2026', lead: updatedLead })
-        });
+      // Update MongoDB Lead Status
+      const today = new Date().toISOString().split('T')[0];
+      const followUp = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]; // Default 3 days if not passed
+      
+      const updatedLead = {
+        ...item.lead,
+        emailStatus: 'Sent',
+        leadStatus: 'Contacted',
+        lastContactDate: today,
+        followUpDate: followUp,
+        contactAttempts: (item.lead.contactAttempts || 0) + 1,
+      };
+      
+      try {
+        await dbConnect();
+        await Lead.findOneAndUpdate({ id: item.lead.id }, { $set: updatedLead });
+      } catch (e) {
+        console.error('Failed to update lead status in DB:', e);
       }
 
       // Delay to avoid SMTP rate limits (e.g. Google's 100/sec burst limit)
@@ -468,16 +444,11 @@ ${item.body.replace(/\r?\n/g, '<br/>')}
       campaign.errors++;
       campaign.logs.push(`[ERROR] Failed to send to ${item.to}: ${e.message}`);
       
-      if (campaign.scriptUrl) {
-         const updatedLead = {
-          ...item.lead,
-          emailStatus: 'Failed'
-        };
-        await fetch(campaign.scriptUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'update_lead', apiKey: 'nr-revibe-secure-key-2026', lead: updatedLead })
-        }).catch(() => {});
+      try {
+        await dbConnect();
+        await Lead.findOneAndUpdate({ id: item.lead.id }, { $set: { emailStatus: 'Failed' } });
+      } catch (err) {
+        console.error('Failed to update lead failure status in DB:', err);
       }
     }
   }

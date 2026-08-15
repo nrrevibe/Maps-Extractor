@@ -109,8 +109,7 @@ export const EmailCampaignManager: React.FC = () => {
             smtpUser: settings.smtpUser,
             smtpPass: settings.smtpPass,
             senderName: settings.senderName,
-          },
-          scriptUrl: settings.googleAppsScriptUrl
+          }
         })
       });
       const data = await res.json();
@@ -133,7 +132,7 @@ export const EmailCampaignManager: React.FC = () => {
                setSendingProgress(false);
                // Trigger a sync from Sheets to fetch the updated statuses
                if (statusData.status === 'completed') {
-                 useLeadStore.getState().handleSyncFromGoogleSheets();
+                 useLeadStore.getState().handleFetchLeadsFromDB();
                }
              }
            } catch(e) {

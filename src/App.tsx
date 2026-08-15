@@ -17,8 +17,7 @@ export default function App() {
     leads, 
     settings, 
     handleUpdateSettings, 
-    handleSyncFromGoogleSheets,
-    handleAddLeads, 
+    handleAddLeads,
     handleUpdateLead, 
     handleDeleteLead,
     existingLeadIds,
@@ -45,17 +44,27 @@ export default function App() {
 
   const handleSyncFromLocalServer = async () => {
     try {
-      const scriptUrl = settings.googleAppsScriptUrl;
-      const res = await fetch(`/api/leads${scriptUrl ? `?scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`);
-      if (!res.ok) throw new Error('Local server down');
-      const data = await res.json();
+      const res = await fetch(`/api/leads`);
+      
+      // If we got any response, the local server is connected
       setIsConnected(true);
+
+      if (!res.ok) {
+        console.warn('Backend returned error status:', res.status);
+        return; // Don't try to parse leads if it failed
+      }
+      
+      const data = await res.json();
       
       if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
         setLeads((() => {
           const combined = [...leads];
+          const idMap = new Map(combined.map((l, i) => [l.id, i]));
+          
           data.leads.forEach((nl: Lead) => {
-            const index = combined.findIndex(el => el.id === nl.id || (nl as any).raw_id && el.id === (nl as any).raw_id);
+            const nlRawId = (nl as any).raw_id;
+            let index = idMap.has(nl.id) ? idMap.get(nl.id)! : (nlRawId && idMap.has(nlRawId) ? idMap.get(nlRawId)! : -1);
+            
             if (index !== -1) {
               combined[index] = { ...combined[index], ...nl };
             } else {
@@ -75,6 +84,7 @@ export default function App() {
         })());
       }
     } catch (e) {
+      // fetch() only throws on actual network failures (e.g. server is down)
       setIsConnected(false);
     }
   };
@@ -85,11 +95,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (settings.googleAppsScriptUrl) {
-      handleSyncFromGoogleSheets();
-    }
-  }, [settings.googleAppsScriptUrl]);
+
 
   useEffect(() => {
     const processQueue = async () => {
@@ -100,28 +106,37 @@ export default function App() {
         const queue: Lead[] = JSON.parse(queueStr);
         if (queue.length === 0) return;
         
-        const leadToSync = queue[0];
-        const scriptUrl = settings.googleAppsScriptUrl;
+        const leadsToSync = queue.slice(0, 5); // Process up to 5 at a time
         
-        const res = await fetch(`/api/leads/${leadToSync.id}${scriptUrl ? `?scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lead: leadToSync })
-        });
+        let successIds = new Set<string>();
+        await Promise.all(leadsToSync.map(async (leadToSync) => {
+          try {
+            const res = await fetch(`/api/leads/${leadToSync.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ lead: leadToSync })
+            });
+            if (res.ok) successIds.add(leadToSync.id);
+          } catch(e) { }
+        }));
         
         setIsConnected(true);
-        if (res.ok) {
-          const newQueue = queue.slice(1);
-          localStorage.setItem('nr_revibe_sync_queue', JSON.stringify(newQueue));
+        if (successIds.size > 0) {
+          const currentQueueStr = localStorage.getItem('nr_revibe_sync_queue');
+          if (currentQueueStr) {
+            let currentQueue: Lead[] = JSON.parse(currentQueueStr);
+            currentQueue = currentQueue.filter(l => !successIds.has(l.id));
+            localStorage.setItem('nr_revibe_sync_queue', JSON.stringify(currentQueue));
+          }
         }
       } catch (e) {
         setIsConnected(false);
       }
     };
     
-    const interval = setInterval(processQueue, 5000);
+    const interval = setInterval(processQueue, 3000); // 3 seconds instead of 5
     return () => clearInterval(interval);
-  }, [settings.googleAppsScriptUrl]);
+  }, []);
 
   const handleDeleteLeadModal = async (id: string) => {
     await handleDeleteLead(id);
@@ -184,9 +199,8 @@ export default function App() {
           {activeTab === 'extractor' && (
             <MapsExtractor
               onAddLeads={handleAddLeads}
-              existingLeadIds={existingLeadIds}
-              onSyncFromSheets={handleSyncFromGoogleSheets}
-              settings={settings}
+              onUpdateSettings={handleUpdateSettings}
+              onSyncFromLocalServer={handleSyncFromLocalServer}
             />
           )}
 

@@ -17,7 +17,9 @@ interface LeadState {
   handleSyncFromGoogleSheets: () => Promise<void>;
   handleAddLeads: (newLeads: Lead[]) => void;
   handleUpdateLead: (updatedLead: Lead) => Promise<void>;
-  handleDeleteLead: (leadId: string) => Promise<void>;
+  handleBatchUpdateLeads: (updatedLeads: Lead[]) => Promise<void>;
+  handleDeleteLead: (leadId: string, skipConfirm?: boolean) => Promise<void>;
+  handleBatchDeleteLeads: (leadIds: string[]) => Promise<void>;
 }
 
 const fuzzyNameMatch = (a: string, b: string): boolean => {
@@ -46,7 +48,6 @@ const getDefaultSettings = (): AgencySettings => {
     sheetName: 'NR Revibe Master Leads 2026',
     sheetId: 'sheet-nr-revibe-2026',
     sendingMode: 'Approval',
-    googleAppsScriptUrl: '',
     customTemplates: [...DEFAULT_EMAIL_TEMPLATES],
     customWhatsAppTemplates: [...DEFAULT_WHATSAPP_TEMPLATES],
   };
@@ -87,8 +88,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
     localStorage.setItem('nr_revibe_settings', JSON.stringify(newSettings));
     
     try {
-      const scriptUrl = newSettings.googleAppsScriptUrl;
-      await fetch(`/api/settings${scriptUrl ? `?scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`, {
+      await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: newSettings })
@@ -99,37 +99,12 @@ export const useLeadStore = create<LeadState>((set, get) => ({
   },
 
   handleSyncFromGoogleSheets: async () => {
-    const { settings } = get();
-    if (!settings.googleAppsScriptUrl) {
-      alert('Please configure your Google Apps Script Web App URL in settings first.');
-      return;
-    }
-
     try {
-      const scriptUrl = settings.googleAppsScriptUrl;
-      const res = await fetch(`/api/leads?scriptUrl=${encodeURIComponent(scriptUrl)}`);
-      
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.includes('text/html')) {
-        alert('Error: The configured Google Apps Script URL is returning an HTML page instead of JSON. Please ensure the Web App is deployed with "Execute as: Me" and "Who has access: Anyone".');
-        set({ isConnected: false });
-        return;
-      }
-      
+      const res = await fetch('/api/leads');
       const data = await res.json();
       if (data.success && Array.isArray(data.leads)) {
         get().setLeads(data.leads);
         set({ isConnected: true });
-        
-        try {
-          await fetch('/api/leads', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ leads: data.leads })
-          });
-        } catch (localSyncErr) {
-          console.warn('Failed to populate local server cache with Sheets leads:', localSyncErr);
-        }
       } else {
         alert('Failed to fetch leads: ' + (data.error || 'Unknown error'));
       }
@@ -191,18 +166,57 @@ export const useLeadStore = create<LeadState>((set, get) => ({
     }
   },
 
-  handleDeleteLead: async (id) => {
-    if (!window.confirm('Are you sure you want to delete this lead?')) return;
+  handleBatchUpdateLeads: async (updatedLeadsArray) => {
+    if (updatedLeadsArray.length === 0) return;
+    const { leads } = get();
+    const updatedMap = new Map(updatedLeadsArray.map(l => [l.id, l]));
+    
+    const newLeads = leads.map(l => updatedMap.has(l.id) ? updatedMap.get(l.id)! : l);
+    get().setLeads(newLeads);
+    
+    try {
+      const queueStr = localStorage.getItem('nr_revibe_sync_queue');
+      const queue: Lead[] = queueStr ? JSON.parse(queueStr) : [];
+      
+      updatedLeadsArray.forEach(updatedLead => {
+        const existingIndex = queue.findIndex(l => l.id === updatedLead.id);
+        if (existingIndex >= 0) queue[existingIndex] = updatedLead;
+        else queue.push(updatedLead);
+      });
+      
+      localStorage.setItem('nr_revibe_sync_queue', JSON.stringify(queue));
+    } catch (e) {
+      console.error('Failed to enqueue batch lead updates locally:', e);
+    }
+  },
+
+  handleDeleteLead: async (id, skipConfirm = false) => {
+    if (!skipConfirm && !window.confirm('Are you sure you want to delete this lead?')) return;
     const { leads, settings } = get();
     get().setLeads(leads.filter(l => l.id !== id));
     
     try {
-      const scriptUrl = settings.googleAppsScriptUrl;
-      await fetch(`/api/leads/${id}${scriptUrl ? `?scriptUrl=${encodeURIComponent(scriptUrl)}` : ''}`, {
+      await fetch(`/api/leads/${id}`, {
         method: 'DELETE'
       });
     } catch (e) {
       console.error('Failed to delete lead from server:', e);
+    }
+  },
+
+  handleBatchDeleteLeads: async (ids) => {
+    const { leads } = get();
+    const idSet = new Set(ids);
+    get().setLeads(leads.filter(l => !idSet.has(l.id)));
+    
+    try {
+      await fetch(`/api/leads/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+    } catch (e) {
+      console.error('Failed to batch delete leads from server:', e);
     }
   },
 }));

@@ -64,6 +64,7 @@ export interface Lead {
   linkedinUrl?: string;
   youtubeUrl?: string;
   tiktokUrl?: string;
+  whatsappUrl?: string;
   socialStatus: SocialStatus;
   lastSocialPost?: string;
   businessHours?: string;

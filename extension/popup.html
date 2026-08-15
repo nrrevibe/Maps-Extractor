@@ -1,92 +1,655 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>NR Rvibe Lead Extractor</title>
-  <style>
-    body { width: 380px; margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 16px; }
-    h1 { font-size: 16px; color: #38bdf8; margin-top: 0; display: flex; align-items: center; justify-content: space-between; }
-    .btn { width: 100%; background: #06b6d4; color: #0f172a; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: background 0.2s; }
-    .btn:hover { background: #22d3ee; }
-    .btn:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
-    .card { background: #1e293b; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; border: 1px solid #334155; }
-    .status { font-size: 12px; padding: 12px; border-radius: 8px; margin-top: 10px; display: none; }
-    .status.success { display: block; background: #064e3b; color: #a7f3d0; border: 1px solid #047857; }
-    .status.info { display: block; background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
-    
-    /* Progress Bar */
-    .progress-bar-container { background: #334155; border-radius: 9999px; height: 8px; width: 100%; margin-top: 8px; overflow: hidden; display: none; }
-    .progress-bar { background: #38bdf8; height: 100%; width: 0%; transition: width 0.3s ease; }
-    
-    /* Stats Grid */
-    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; display: none; }
-    .stat-badge { background: #0f172a; padding: 8px; border-radius: 6px; text-align: center; font-size: 11px; border: 1px solid #1e293b; }
-    .stat-val { font-weight: bold; color: #22d3ee; font-size: 14px; margin-top: 4px; }
-    /* Added styles */
-    .input-group { margin-bottom: 10px; }
-    .input-group label { display: block; font-size: 11px; margin-bottom: 4px; color: #94a3b8; }
-    .input-group select, .input-group input { width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 6px 8px; border-radius: 4px; font-size: 12px; }
-    .input-group select:focus, .input-group input:focus { outline: none; border-color: #06b6d4; }
-    .btn-secondary { background: #334155; color: #f8fafc; }
-    .btn-secondary:hover { background: #475569; }
-    .btn-danger { background: #e11d48; color: white; }
-    .btn-danger:hover { background: #be123c; }
-    .btn-success { background: #10b981; color: #0f172a; }
-    .btn-success:hover { background: #059669; }
-    .flex-row { display: flex; gap: 8px; margin-top: 8px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NR Rvibe — Lead Extractor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0B0E14;
+    --surface: rgba(22, 25, 32, 0.7);
+    --surface2: rgba(30, 35, 48, 0.8);
+    --border: rgba(255, 255, 255, 0.08);
+    --accent: #3b82f6;
+    --accent2: #8b5cf6;
+    --accent-glow: rgba(139, 92, 246, 0.4);
+    --green: #10b981;
+    --red: #f43f5e;
+    --yellow: #f59e0b;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    width: 420px;
+    min-height: 580px;
+    font-size: 13px;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Dynamic Background Glow */
+  body::before {
+    content: '';
+    position: absolute;
+    top: -50px; left: -50px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+    z-index: -1;
+    opacity: 0.5;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: rgba(11, 14, 20, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header-btn {
+    background: rgba(255,255,255,0.15);
+    border: none;
+    cursor: pointer;
+    color: white;
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  .header-btn:hover { background: rgba(255,255,255,0.25); }
+  .header-logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  }
+  .header h1 { font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+  .header p { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Nav Tabs ── */
+  .nav {
+    display: flex;
+    background: rgba(22, 25, 32, 0.4);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-tab {
+    flex: 1; padding: 12px 4px;
+    font-size: 11px; font-weight: 600;
+    color: var(--muted);
+    background: none; border: none; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .nav-tab.active { color: #fff; border-bottom-color: var(--accent2); text-shadow: 0 0 10px var(--accent-glow); }
+  .nav-tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.03); }
+
+  /* ── Screens ── */
+  .screen { display: none; padding: 16px; animation: fadeIn 0.3s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Form Elements ── */
+  label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  input[type="text"], input[type="url"], input[type="number"], select {
+    width: 100%; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text);
+    font-size: 13px; font-family: inherit;
+    transition: all 0.2s ease;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent2); box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2); background: rgba(30, 35, 48, 1); }
+  .field { margin-bottom: 16px; }
+  .field-row { display: flex; gap: 12px; }
+  .field-row .field { flex: 1; }
+
+  /* ── Checkbox group ── */
+  .check-group { display: flex; flex-direction: column; gap: 8px; }
+  .check-item { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 8px; border-radius: 8px; transition: background 0.2s; margin-left: -8px; }
+  .check-item:hover { background: rgba(255,255,255,0.04); }
+  .check-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent2); cursor: pointer; }
+  .check-item .sub { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  /* ── Radio group ── */
+  .radio-group { display: flex; flex-direction: column; gap: 8px; }
+  .radio-item { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 8px; border-radius: 8px; transition: background 0.2s; margin-left: -8px; }
+  .radio-item:hover { background: rgba(255,255,255,0.04); }
+  .radio-item input[type="radio"] { width: 16px; height: 16px; accent-color: var(--accent2); cursor: pointer; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 12px;
+    font-size: 13px; font-weight: 600; font-family: 'Outfit', sans-serif;
+    border: none; border-radius: var(--radius); cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    color: #fff; position: relative; overflow: hidden;
+  }
+  .btn::after {
+    content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(rgba(255,255,255,0.1), transparent);
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .btn:hover::after { opacity: 1; }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+  
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); }
+  .btn-primary:hover { box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+  .btn-danger { background: rgba(244, 63, 94, 0.1); color: var(--red); border: 1px solid rgba(244, 63, 94, 0.3); }
+  .btn-danger:hover { background: rgba(244, 63, 94, 0.2); }
+  .btn-yellow { background: rgba(245, 158, 11, 0.1); color: var(--yellow); border: 1px solid rgba(245, 158, 11, 0.3); }
+  .btn-yellow:hover { background: rgba(245, 158, 11, 0.2); }
+  .btn-green { background: rgba(16, 185, 129, 0.1); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+  .btn-green:hover { background: rgba(16, 185, 129, 0.2); }
+  
+  .btn-sm { padding: 8px 12px; font-size: 12px; flex: 1; }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .card-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+
+  /* ── Progress Bar ── */
+  .prog-track { background: var(--border); border-radius: 99px; height: 6px; overflow: hidden; margin: 6px 0; }
+  .prog-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 99px; transition: width .4s ease; }
+
+  /* ── Stats Grid ── */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .stat-val { font-size: 18px; font-weight: 700; color: var(--text); margin-top: 2px; }
+  .stat-val.green { color: var(--green); }
+  .stat-val.red { color: var(--red); }
+  .stat-val.yellow { color: var(--yellow); }
+
+  /* ── Now Checking ── */
+  .now-checking { background: var(--surface); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 8px 12px; margin: 8px 0; }
+  .nc-domain { font-weight: 600; font-size: 13px; }
+  .nc-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Hot Finds ── */
+  .hot-find { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .hot-find:last-child { border-bottom: none; }
+  .hot-find .icon { font-size: 14px; margin-top: 1px; }
+  .hot-find .name { font-weight: 600; }
+  .hot-find .detail { color: var(--muted); font-size: 11px; }
+
+  /* ── Before/After table ── */
+  .ba-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .ba-table td { padding: 5px 8px; }
+  .ba-table tr:nth-child(even) td { background: var(--surface); }
+  .ba-table .col-label { color: var(--muted); }
+  .ba-table .col-after { color: var(--green); font-weight: 700; }
+  .ba-table .col-gain { color: var(--accent); font-size: 11px; }
+
+  /* ── Summary boxes ── */
+  .sum-box { border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; font-size: 12px; }
+  .sum-box.green { background: #22c55e18; border: 1px solid #22c55e44; }
+  .sum-box.yellow { background: #f59e0b18; border: 1px solid #f59e0b44; }
+  .sum-box.red { background: #ef444418; border: 1px solid #ef444444; }
+  .sum-box .sum-num { font-size: 22px; font-weight: 700; }
+  .sum-box .sum-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+  /* ── Timer ── */
+  .timer-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Collector section ── */
+  .collector-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+  .collector-status { font-size: 12px; color: var(--muted); margin: 6px 0 4px; }
+  .stat-row { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .stat-badge { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 11px; }
+  .stat-badge span { font-weight: 700; color: var(--accent); }
+
+  /* ── Section heading ── */
+  .section-heading { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 12px 0 6px; }
+
+  /* ── Scrollable log ── */
+  .log-scroll { max-height: 90px; overflow-y: auto; }
+  .log-scroll::-webkit-scrollbar { width: 4px; }
+  .log-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; color: var(--muted); padding: 24px; font-size: 12px; }
+  .empty .emo { font-size: 28px; display: block; margin-bottom: 6px; }
+
+  /* ── Live Preview Card ── */
+  .live-preview {
+    background: var(--surface);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .live-preview::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent));
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .live-preview.idle::before { display: none; }
+  .lp-name { font-weight: 700; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .lp-sources { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .lp-source {
+    font-size: 10px; padding: 3px 8px; border-radius: 4px;
+    border: 1px solid var(--border); background: var(--surface2);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .lp-source.done { border-color: rgba(16,185,129,0.4); color: var(--green); }
+  .lp-source.scraping { border-color: rgba(139,92,246,0.4); color: var(--accent2); animation: pulse 1.5s infinite; }
+  .lp-source.failed { border-color: rgba(244,63,94,0.3); color: var(--red); }
+  .lp-source.pending { opacity: 0.5; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .lp-finds { font-size: 12px; line-height: 1.6; }
+  .lp-finds .new-tag { color: var(--green); font-weight: 700; font-size: 10px; }
+  .lp-decision { font-size: 11px; color: var(--muted); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); font-style: italic; }
+
+  /* ── Scraping Action Log ── */
+  .scraping-log { max-height: 120px; overflow-y: auto; font-size: 11px; }
+  .scraping-log::-webkit-scrollbar { width: 3px; }
+  .scraping-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-entry { padding: 3px 0; display: flex; gap: 6px; align-items: flex-start; }
+  .log-entry .log-icon { flex-shrink: 0; width: 14px; text-align: center; }
+  .log-entry .log-text { color: var(--muted); }
+  .log-entry .log-name { color: var(--text); font-weight: 500; }
+  .log-entry.done .log-text { color: var(--green); }
+  .log-entry.failed .log-text { color: var(--red); }
+  .log-entry.discovered .log-text { color: var(--accent2); }
+
+  /* ── Active Tabs Indicator ── */
+  .active-tabs-bar {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--muted); padding: 6px 0;
+  }
+  .tab-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1s infinite; }
+</style>
 </head>
 <body>
-  <h1>NR Rvibe Extractor <span>v1.0</span></h1>
-  
-  <div class="card" id="settingsCard">
-    <div class="input-group">
-      <label>Google Apps Script Web App URL</label>
-      <input type="text" id="webAppUrl" placeholder="Enter URL or leave blank to use default">
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-logo">🎯</div>
+  <div style="flex: 1;">
+    <h1>NR Rvibe Lead Extractor</h1>
+    <p>Google Maps → Deep Harvest → CRM</p>
+  </div>
+  <button id="openInTabBtn" class="header-btn" title="Open in Full Browser Tab">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+  </button>
+</div>
+
+<!-- ── Nav ── -->
+<div class="nav">
+  <button class="nav-tab active" data-screen="screen-setup">⚙ Setup</button>
+  <button class="nav-tab" data-screen="screen-pipeline">🚀 Live Pipeline</button>
+  <button class="nav-tab" data-screen="screen-summary">✅ Summary</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 1: SETUP                                                    -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="screen active" id="screen-setup">
+
+  <div class="sum-box green" style="margin-bottom: 16px;">
+    <span class="emo">⚡</span> Server Connected (Direct Mode)
+  </div>
+
+  <div class="section-heading">🔍 Deep Harvest Settings</div>
+
+  <div class="field">
+    <label>What to harvest</label>
+    <div class="check-group">
+      <label class="check-item">
+        <input type="checkbox" id="harvestWebsite" checked>
+        Website <span class="sub">finds email + tech audit</span>
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="harvestInstagram" checked>
+        Instagram <span class="sub">followers + activity</span>
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="harvestFacebook" checked>
+        Facebook <span class="sub">page audit</span>
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="harvestLinkedin" checked>
+        Founder LinkedIn <span class="sub">DuckDuckGo Search</span>
+      </label>
     </div>
-    <div class="input-group">
-      <label>Scraping Speed</label>
+  </div>
+
+  <div class="field">
+    <label>Speed Mode</label>
+    <div class="radio-group">
+      <label class="radio-item">
+        <input type="radio" name="speedMode" value="safe"> 🐢 Safe — 1 tab, 5–10s delay
+      </label>
+      <label class="radio-item">
+        <input type="radio" name="speedMode" value="normal" checked> 🚶 Normal — 1 tab, 3–5s delay
+      </label>
+      <label class="radio-item">
+        <input type="radio" name="speedMode" value="fast"> 🏃 Fast — 2 tabs, 2–3s delay <span class="badge">⚠️ Risky</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section-heading">🧠 Smart Scraping</div>
+
+  <div class="field">
+    <div class="check-group">
+      <label class="check-item">
+        <input type="checkbox" id="scrapeSubPages" checked>
+        Scrape Contact & About pages <span class="sub">deeper data</span>
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="crossDiscovery" checked>
+        Cross-discover social links <span class="sub">find FB from website etc.</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section-heading">🔄 Deduplication</div>
+
+  <div class="field">
+    <div class="check-group">
+      <label class="check-item">
+        <input type="checkbox" id="skipDuplicates" checked>
+        Skip exact duplicates <span class="sub">name + phone match</span>
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="mergeExisting" checked>
+        Merge similar leads <span class="sub">add new data to existing</span>
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="updateExisting" checked>
+        Update existing leads <span class="sub">refresh stale data</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="field-row">
+    <div class="field">
+      <label>Max Maps Leads</label>
+      <input type="number" id="maxMapsLeads" value="500" min="10" max="5000">
+    </div>
+    <div class="form-group row">
+      <div class="col">
+        <label>Max Websites</label>
+        <input type="number" id="maxWebsites" value="1000">
+      </div>
+      <div class="col">
+        <label>Max Social</label>
+        <input type="number" id="maxSocial" value="1000">
+      </div>
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field">
+      <label>Page Timeout (s)</label>
+      <input type="number" id="pageLoadTimeout" value="20" min="5" max="60">
+    </div>
+  </div>
+
+  <div class="field">
+    <div class="check-group">
+      <label class="check-item">
+        <input type="checkbox" id="skipCached" checked>
+        Skip already-harvested domains (7 days)
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="autoPauseOnFailures" checked>
+        Auto-pause if 5 consecutive failures
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="stopOnInstagramLoginWall" checked>
+        Stop Instagram if login wall detected
+      </label>
+      <label class="check-item">
+        <input type="checkbox" id="retryFailed">
+        Retry failed URLs once
+      </label>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="saveSettingsBtn">💾 Save Configuration</button>
+  <div style="margin-top:6px;">
+    <button class="btn btn-secondary" id="clearCacheBtn" style="font-size:11px;padding:6px;">🗑 Clear Harvest Cache</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 2: LIVE PIPELINE                                            -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="screen" id="screen-pipeline">
+
+  <div class="card">
+    <div class="card-title">📍 Google Maps Scraper</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+      Navigate to Google Maps, perform a local business search, then click Extract. The background Harvester will process leads in real-time.
+    </p>
+
+    <div class="field">
+      <label>Scrape Speed</label>
       <select id="scrapeSpeed">
-        <option value="safe">Safe Mode (Slower, avoids bans)</option>
-        <option value="fast">Fast Mode (Max speed)</option>
+        <option value="safe">🐢 Safe (recommended)</option>
+        <option value="normal" selected>🚶 Normal</option>
+        <option value="fast">🏃 Fast</option>
       </select>
     </div>
-    <button id="saveSettingsBtn" class="btn btn-secondary" style="padding: 6px; font-size: 11px; margin-top: 4px;">Save Settings</button>
+
+    <button class="btn btn-primary" id="startCollectorBtn">🗺 Start Collector</button>
+    <button class="btn btn-danger" id="stopCollectorBtn" style="display:none;margin-top:6px;">⏹ Stop Collector</button>
   </div>
 
-  <button id="extractBtn" class="btn">Extract Leads from Active Maps List</button>
-  <button id="stopBtn" class="btn btn-danger" style="display: none;">Stop Extraction</button>
-  <button id="syncStoppedBtn" class="btn btn-success" style="display: none;">Sync Scraped Leads to Sheets & CRM</button>
-  
-  <div class="flex-row">
-    <button id="openCrmBtn" class="btn btn-secondary" style="margin-top: 0;">Open CRM</button>
-    <button id="clearCacheBtn" class="btn btn-secondary" style="margin-top: 0; background: #94a3b8; color: #0f172a;">Clear Cache</button>
-  </div>
-  
-  <div id="statusBox" class="status">
-    <div id="statusHeader" style="font-weight: bold; color: #38bdf8; font-size: 13px; margin-bottom: 4px;">Initializing...</div>
-    <div id="statusText" style="color: #94a3b8; font-size: 11px; margin-bottom: 6px; line-height: 1.4;"></div>
-    
-    <div id="progressBarContainer" class="progress-bar-container">
-      <div id="progressBar" class="progress-bar"></div>
+  <div class="collector-card" id="collectorProgress" style="display:none;">
+    <div class="card-title">Maps Extractor Progress</div>
+    <div class="collector-status" id="collectorStatusText">Initializing...</div>
+    <div class="prog-track"><div class="prog-bar" id="collectorBar" style="width:0%"></div></div>
+    <div class="timer-row">
+      <span id="collectorPct">0%</span>
+      <span id="collectorCount">0 / 0</span>
     </div>
-    
-    <div id="statsGrid" class="stats-grid">
-      <div class="stat-badge">
-        <div>📞 Phone</div>
-        <div id="statPhones" class="stat-val">0</div>
-      </div>
-      <div class="stat-badge">
-        <div>🌐 Website</div>
-        <div id="statWebsites" class="stat-val">0</div>
-      </div>
-      <div class="stat-badge">
-        <div>📧 Socials</div>
-        <div id="statSocials" class="stat-val">0</div>
-      </div>
+    <div class="stat-row">
+      <div class="stat-badge">📍 Found: <span id="statMapsFound">0</span></div>
+      <div class="stat-badge">✅ Done: <span id="statMapsProcessed">0</span></div>
+      <div class="stat-badge">📱 <span id="statPhone">0</span> phones</div>
+      <div class="stat-badge">🌐 <span id="statWebsite">0</span> sites</div>
     </div>
   </div>
 
-  <script src="popup.js"></script>
+  <!-- Running state for Harvester (shown when streaming) -->
+  <div id="harvestRunning" style="display:none; margin-top:16px;">
+    <div class="card-title">🔍 Background Harvester Progress</div>
+
+    <!-- Active Tabs Indicator -->
+    <div class="active-tabs-bar" id="activeTabsBar" style="display:none;">
+      <div class="tab-dot"></div>
+      <span id="activeTabsText">0 tabs open</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Overall Progress</div>
+      <div class="prog-track"><div class="prog-bar" id="harvesterBar" style="width:0%"></div></div>
+      <div class="timer-row">
+        <span id="harvesterPct">0%</span>
+        <span id="harvesterCount">0 / 0</span>
+      </div>
+
+      <div class="now-checking" id="nowChecking">
+        <div class="nc-domain" id="ncDomain">—</div>
+        <div class="nc-meta" id="ncMeta">Waiting...</div>
+      </div>
+
+      <div class="timer-row" id="timerRow">
+        <span id="elapsedText">⏱ 0s elapsed</span>
+        <span id="etaText">ETA: —</span>
+      </div>
+    </div>
+
+    <!-- Live Data Preview -->
+    <div class="live-preview idle" id="livePreview" style="display:none;">
+      <div class="lp-name">
+        <span>🔍</span>
+        <span id="lpLeadName">—</span>
+      </div>
+      <div class="lp-sources" id="lpSources"></div>
+      <div class="lp-finds" id="lpFinds"></div>
+      <div class="lp-decision" id="lpDecision"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Results So Far</div>
+      <div class="stats-grid">
+        <div class="stat-item"><div class="stat-label">Websites</div><div class="stat-val" id="sWebsites">0</div></div>
+        <div class="stat-item"><div class="stat-label">✉ Emails Found</div><div class="stat-val green" id="sEmails">0</div></div>
+        <div class="stat-item"><div class="stat-label">Instagram</div><div class="stat-val" id="sIG">0</div></div>
+        <div class="stat-item"><div class="stat-label">Facebook</div><div class="stat-val" id="sFB">0</div></div>
+        <div class="stat-item"><div class="stat-label">✅ Success</div><div class="stat-val green" id="sSuccess">0</div></div>
+        <div class="stat-item"><div class="stat-label">⚠ Login Walls</div><div class="stat-val yellow" id="sLoginWalls">0</div></div>
+        <div class="stat-item"><div class="stat-label">❌ Failed</div><div class="stat-val red" id="sFailed">0</div></div>
+        <div class="stat-item"><div class="stat-label">⏭ Skipped</div><div class="stat-val" id="sSkipped">0</div></div>
+        <div class="stat-item"><div class="stat-label">📄 Sub-Pages</div><div class="stat-val" id="sSubPages">0</div></div>
+        <div class="stat-item"><div class="stat-label">🔗 Discoveries</div><div class="stat-val" id="sCrossDisc">0</div></div>
+      </div>
+    </div>
+
+    <!-- Scraping Action Log -->
+    <div class="card">
+      <div class="card-title">📋 Scraping Log</div>
+      <div class="scraping-log" id="scrapingLog">
+        <div style="color:var(--muted); font-size:11px; text-align:center; padding:8px;">Waiting for actions...</div>
+      </div>
+    </div>
+
+    <div class="card" id="hotFindsCard" style="display:none;">
+      <div class="card-title">🔥 Hot Finds</div>
+      <div id="hotFindsList"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-yellow btn-sm" id="pauseBtn">⏸ Pause</button>
+      <button class="btn btn-secondary btn-sm" id="skipBtn">⏭ Skip</button>
+      <button class="btn btn-danger btn-sm" id="stopBtn">⏹ Stop</button>
+    </div>
+
+    <div id="autoPauseBanner" style="display:none;margin-top:8px;" class="sum-box yellow">
+      ⚠️ Auto-paused: too many consecutive failures.
+      <button class="btn btn-yellow" style="margin-top:6px;font-size:11px;padding:5px;" id="resumeBtn">▶ Resume</button>
+    </div>
+    <div id="igLoginBanner" style="display:none;margin-top:8px;" class="sum-box red">
+      🔐 Instagram login wall detected. Instagram tasks skipped.
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- SCREEN 3: SUMMARY (Results)                                        -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="screen" id="screen-summary">
+
+  <div id="summaryEmpty">
+    <div class="empty">
+      <span class="emo">✅</span>
+      No harvest completed yet. Run the Collector, then Harvest to see results here.
+    </div>
+  </div>
+
+  <div id="summaryContent" style="display:none;">
+    <div class="card">
+      <div class="card-title">🏁 Harvest Complete</div>
+      <div class="stats-grid" style="margin-bottom:0">
+        <div class="stat-item"><div class="stat-label">Leads Processed</div><div class="stat-val" id="sumTotal">0</div></div>
+        <div class="stat-item"><div class="stat-label">Tabs Opened</div><div class="stat-val" id="sumTabs">0</div></div>
+        <div class="stat-item"><div class="stat-label">Total Time</div><div class="stat-val" id="sumTime">—</div></div>
+        <div class="stat-item"><div class="stat-label">Emails Found</div><div class="stat-val green" id="sumEmails">0</div></div>
+        <div class="stat-item"><div class="stat-label">Sub-Pages Scraped</div><div class="stat-val" id="sumSubPages">0</div></div>
+        <div class="stat-item"><div class="stat-label">Cross-Discoveries</div><div class="stat-val" id="sumCrossDisc">0</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Before → After</div>
+      <table class="ba-table">
+        <tr><td class="col-label">Emails found</td><td id="baEmailBefore">—</td><td class="col-after" id="baEmailAfter">—</td><td class="col-gain" id="baEmailGain"></td></tr>
+        <tr><td class="col-label">Avg lead score</td><td id="baScoreBefore">—</td><td class="col-after" id="baScoreAfter">—</td><td class="col-gain" id="baScoreGain"></td></tr>
+        <tr><td class="col-label">Hot leads (80+)</td><td id="baHotBefore">—</td><td class="col-after" id="baHotAfter">—</td><td class="col-gain" id="baHotGain"></td></tr>
+      </table>
+    </div>
+
+    <div id="qualifiedBox" class="sum-box green" style="display:none;">
+      <div class="sum-num" id="sumQualified">0</div>
+      <div class="sum-label">leads with email — ready to push ✅</div>
+    </div>
+    <div id="phoneOnlyBox" class="sum-box yellow" style="display:none;">
+      <div class="sum-num" id="sumPhoneOnly">0</div>
+      <div class="sum-label">leads — no email, use phone outreach 📱</div>
+    </div>
+    <div id="lowScoreBox" class="sum-box red" style="display:none;">
+      <div class="sum-num" id="sumLowScore">0</div>
+      <div class="sum-label">leads rejected (low score ❌)</div>
+    </div>
+
+    <div class="btn-row" style="margin-bottom: 8px;">
+      <button class="btn btn-primary btn-sm" id="harvestPendingBtn" style="width: 100%;">▶ Harvest Pending Websites</button>
+    </div>
+    
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" id="pushQualifiedBtn" style="font-size: 10px;">📤 Push Email</button>
+      <button class="btn btn-yellow btn-sm" id="pushPhoneOnlyBtn" style="font-size: 10px;">📤 Push Phone</button>
+      <button class="btn btn-danger btn-sm" id="pushLowScoreBtn" style="font-size: 10px;">📤 Push Low Score</button>
+      <button class="btn btn-primary btn-sm" id="pushAllBtn" style="font-size: 10px;">📤 Push All</button>
+    </div>
+    <div class="btn-row" style="margin-top: 8px;">
+      <button class="btn btn-secondary btn-sm" id="exportCsvBtn">💾 Export All to CSV</button>
+      <button class="btn btn-secondary btn-sm" id="extractMoreBtn">🔄 Extract More</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="popup.js"></script>
 </body>
 </html>

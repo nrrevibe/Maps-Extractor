@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "NR Revibe - Google Maps Lead Extractor",
-  "version": "1.0.0",
-  "description": "Extract local business leads from Google Maps, analyze websites, calculate lead scores, and sync to Google Sheets CRM.",
+  "version": "2.0.0",
+  "description": "Deep-harvest leads from Google Maps. Scrapes websites, Instagram & Facebook for emails, tech stack, and social data. Auto-syncs to Google Sheets CRM.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "NR Rvibe Lead Extractor"
@@ -11,14 +11,11 @@
     "activeTab",
     "scripting",
     "storage",
-    "tabs"
+    "tabs",
+    "downloads"
   ],
   "host_permissions": [
-    "<all_urls>",
-    "https://*.google.com/*",
-    "https://maps.googleapis.com/*",
-    "https://maps-extractor.vercel.app/*",
-    "http://localhost/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "background.js"
@@ -27,15 +24,11 @@
     {
       "matches": [
         "https://*.google.com/maps/*",
-        "https://www.google.com/maps/*",
         "https://*.google.co.in/maps/*",
-        "https://www.google.co.in/maps/*",
         "https://*.google.co.uk/maps/*",
-        "https://www.google.co.uk/maps/*"
+        "https://*.google.com.au/maps/*"
       ],
-      "js": [
-        "content.js"
-      ]
+      "js": ["content.js"]
     },
     {
       "matches": [
@@ -43,9 +36,18 @@
         "http://localhost/*",
         "http://127.0.0.1/*"
       ],
-      "js": [
-        "content-localhost.js"
-      ]
+      "js": ["content-localhost.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "extractors/website-extractor.js",
+        "extractors/website-subpage-extractor.js",
+        "extractors/instagram-extractor.js",
+        "extractors/facebook-extractor.js"
+      ],
+      "matches": ["<all_urls>"]
     }
   ]
 }

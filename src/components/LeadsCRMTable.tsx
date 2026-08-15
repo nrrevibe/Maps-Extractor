@@ -49,7 +49,7 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
   onSelectLeadForModal,
   onRunBatchAIAudit,
 }) => {
-  const { leads, settings, handleUpdateLead: onUpdateLead, handleDeleteLead: onDeleteLead, handleAddLeads: onAddLeads } = useLeadStore();
+  const { leads, settings, handleUpdateLead: onUpdateLead, handleBatchUpdateLeads: onBatchUpdateLeads, handleDeleteLead: onDeleteLead, handleBatchDeleteLeads: onBatchDeleteLeads, handleAddLeads: onAddLeads } = useLeadStore();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('All');
@@ -116,48 +116,53 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
   });
 
   // Filtering Logic
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch =
-      lead.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (lead.websiteUrl || '').toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredLeads = React.useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
+    return leads.filter(lead => {
+      const matchesSearch =
+        lead.businessName.toLowerCase().includes(searchLower) ||
+        lead.city.toLowerCase().includes(searchLower) ||
+        lead.category.toLowerCase().includes(searchLower) ||
+        lead.email.toLowerCase().includes(searchLower) ||
+        (lead.websiteUrl || '').toLowerCase().includes(searchLower);
 
-    const matchesPriority = priorityFilter === 'All' || lead.leadPriority === priorityFilter;
-    const matchesStatus = statusFilter === 'All' || lead.leadStatus === statusFilter;
+      const matchesPriority = priorityFilter === 'All' || lead.leadPriority === priorityFilter;
+      const matchesStatus = statusFilter === 'All' || lead.leadStatus === statusFilter;
 
-    let matchesChip = true;
-    if (quickChipFilter === 'hot') matchesChip = lead.leadScore >= 80;
-    else if (quickChipFilter === 'no-website') matchesChip = !lead.websiteUrl || lead.websiteStatus === 'No Website';
-    else if (quickChipFilter === 'unsecure') matchesChip = Boolean(lead.websiteUrl && !lead.https);
-    else if (quickChipFilter === 'mobile-broken') matchesChip = lead.mobileFriendly === false;
-    else if (quickChipFilter === 'approved-queue') matchesChip = lead.emailStatus === 'Approved' || lead.leadStatus === 'Approved';
-    else if (quickChipFilter === 'today-follow-up') {
-      const todayStr = new Date().toISOString().split('T')[0];
-      matchesChip = lead.followUpDate === todayStr;
-    }
+      let matchesChip = true;
+      if (quickChipFilter === 'hot') matchesChip = lead.leadScore >= 80;
+      else if (quickChipFilter === 'no-website') matchesChip = !lead.websiteUrl || lead.websiteStatus === 'No Website';
+      else if (quickChipFilter === 'unsecure') matchesChip = Boolean(lead.websiteUrl && !lead.https);
+      else if (quickChipFilter === 'mobile-broken') matchesChip = lead.mobileFriendly === false;
+      else if (quickChipFilter === 'approved-queue') matchesChip = lead.emailStatus === 'Approved' || lead.leadStatus === 'Approved';
+      else if (quickChipFilter === 'today-follow-up') {
+        const todayStr = new Date().toISOString().split('T')[0];
+        matchesChip = lead.followUpDate === todayStr;
+      } else if (quickChipFilter === 'duplicates') {
+        matchesChip = Boolean(lead.customTags && lead.customTags.some(t => String(t).includes('Duplicate of')));
+      }
 
-    const matchesCategory = categoryFilter === 'All' || lead.category === categoryFilter;
+      const matchesCategory = categoryFilter === 'All' || lead.category === categoryFilter;
 
-    let matchesOpportunity = true;
-    if (opportunityFilter === 'Website') {
-      matchesOpportunity = lead.opportunityType === 'Website' || lead.opportunityType === 'New Website';
-    } else if (opportunityFilter === 'Redesign') {
-      matchesOpportunity = lead.opportunityType === 'Redesign' || lead.opportunityType === 'SEO';
-    } else if (opportunityFilter === 'Social Media') {
-      matchesOpportunity = lead.opportunityType === 'Social Media';
-    } else if (opportunityFilter === 'Both') {
-      matchesOpportunity = lead.opportunityType === 'Both';
-    }
-    
-    let matchesContact = true;
-    if (contactInfoFilter === 'Has Phone') matchesContact = Boolean(lead.phone && lead.phone !== 'N/A');
-    else if (contactInfoFilter === 'Has Email') matchesContact = Boolean(lead.email && lead.email !== 'N/A');
-    else if (contactInfoFilter === 'Has Instagram') matchesContact = Boolean(lead.instagramUrl);
+      let matchesOpportunity = true;
+      if (opportunityFilter === 'Website') {
+        matchesOpportunity = lead.opportunityType === 'Website' || lead.opportunityType === 'New Website';
+      } else if (opportunityFilter === 'Redesign') {
+        matchesOpportunity = lead.opportunityType === 'Redesign' || lead.opportunityType === 'SEO';
+      } else if (opportunityFilter === 'Social Media') {
+        matchesOpportunity = lead.opportunityType === 'Social Media';
+      } else if (opportunityFilter === 'Both') {
+        matchesOpportunity = lead.opportunityType === 'Both';
+      }
+      
+      let matchesContact = true;
+      if (contactInfoFilter === 'Has Phone') matchesContact = Boolean(lead.phone && lead.phone !== 'N/A');
+      else if (contactInfoFilter === 'Has Email') matchesContact = Boolean(lead.email && lead.email !== 'N/A');
+      else if (contactInfoFilter === 'Has Instagram') matchesContact = Boolean(lead.instagramUrl);
 
-    return matchesSearch && matchesPriority && matchesStatus && matchesChip && matchesOpportunity && matchesContact && matchesCategory;
-  });
+      return matchesSearch && matchesPriority && matchesStatus && matchesChip && matchesOpportunity && matchesContact && matchesCategory;
+    });
+  }, [leads, searchTerm, priorityFilter, statusFilter, quickChipFilter, opportunityFilter, contactInfoFilter, categoryFilter]);
 
   // Sorting Logic
   const sortedLeads = React.useMemo(() => {
@@ -319,88 +324,92 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
 
   // Batch Operations
   const handleBatchMoveToApproved = () => {
+    const leadsToUpdate: Lead[] = [];
     selectedLeadIds.forEach(id => {
       const lead = leads.find(l => l.id === id);
       if (lead) {
-        onUpdateLead({
+        leadsToUpdate.push({
           ...lead,
           leadStatus: 'Approved',
           emailStatus: 'Approved',
         });
       }
     });
+    if (leadsToUpdate.length > 0) onBatchUpdateLeads(leadsToUpdate);
   };
 
   const handleBatchApplyCampaign = () => {
+    const leadsToUpdate: Lead[] = [];
     selectedLeadIds.forEach(id => {
       const lead = leads.find(l => l.id === id);
       if (lead) {
-        onUpdateLead({
+        leadsToUpdate.push({
           ...lead,
           leadStatus: 'Approved',
           emailStatus: 'Draft',
         });
       }
     });
+    if (leadsToUpdate.length > 0) onBatchUpdateLeads(leadsToUpdate);
   };
 
   const handleBatchChangeStatus = (newStatus: LeadStatus) => {
     if (!newStatus) return;
+    const leadsToUpdate: Lead[] = [];
     selectedLeadIds.forEach(id => {
       const lead = leads.find(l => l.id === id);
       if (lead) {
-        onUpdateLead({ ...lead, leadStatus: newStatus });
+        leadsToUpdate.push({ ...lead, leadStatus: newStatus });
       }
     });
+    if (leadsToUpdate.length > 0) onBatchUpdateLeads(leadsToUpdate);
   };
 
   // Real Sync to Google Sheets Web App Backend
-  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+  // Real Sync to Web App Backend
+  const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
-  const handleSyncToGoogleSheets = async () => {
-    if (!settings.googleAppsScriptUrl) {
-      alert("Please configure the Google Apps Script Web App URL in the Settings modal first.");
-      return;
-    }
-    
-    setIsSyncingSheets(true);
-    setSyncStatusMsg("Connecting and pushing leads to Google Sheets database...");
+  const handlePushSelected = async () => {
+    setIsSyncing(true);
+    setSyncStatusMsg("Connecting and pushing leads to Database...");
     
     try {
       const selectedLeadsList = leads.filter(l => selectedLeadIds.has(l.id));
-      const response = await fetch(settings.googleAppsScriptUrl, {
+      const response = await fetch('/api/leads', {
         method: "POST",
-        mode: "no-cors", // Allow cross-domain post requests to Google Apps Script
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "sync_leads",
-          leads: selectedLeadsList
+          leads: selectedLeadsList,
+          settings: settings
         })
       });
+      
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Failed to sync');
 
       // Update local lead status as pushed
       selectedLeadsList.forEach(lead => {
         onUpdateLead({
           ...lead,
-          notes: `${lead.notes || ""}\n[SYNC] Synced to Google Sheets DB on ${new Date().toLocaleDateString()}`
+          notes: `${lead.notes || ""}\n[SYNC] Synced to DB on ${new Date().toLocaleDateString()}`
         });
       });
 
-      setSyncStatusMsg(`Successfully triggered sync for ${selectedLeadIds.size} leads! Check your Google Sheet.`);
+      setSyncStatusMsg(`Successfully triggered sync for ${selectedLeadIds.size} leads!`);
       setTimeout(() => setSyncStatusMsg(null), 4000);
       setSelectedLeadIds(new Set());
     } catch (err: any) {
       console.error(err);
       alert(`Sync failed: ${err.message || err}`);
     } finally {
-      setIsSyncingSheets(false);
+      setIsSyncing(false);
     }
   };
 
   const handleBatchDelete = () => {
     if (window.confirm(`Are you sure you want to delete ${selectedLeadIds.size} selected lead(s)?`)) {
-      selectedLeadIds.forEach(id => onDeleteLead(id));
+      onBatchDeleteLeads(Array.from(selectedLeadIds));
       setSelectedLeadIds(new Set());
     }
   };
@@ -527,7 +536,7 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <h2 className="text-lg font-bold text-slate-900">Google Sheets CRM Lead Database</h2>
+            <h2 className="text-lg font-bold text-slate-900">Lead CRM Database</h2>
             <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 font-bold text-xs rounded-full">
               {filteredLeads.length} Leads
             </span>
@@ -538,10 +547,10 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
             <button
               onClick={handleCopyTSV}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition-all"
-              title="Copy formatted table rows to paste directly into Google Sheets or Excel"
+              title="Copy formatted table rows to paste directly into Excel"
             >
               {copiedTSV ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
-              <span>{copiedTSV ? 'Copied to Clipboard!' : 'Copy for Google Sheets'}</span>
+              <span>{copiedTSV ? 'Copied to Clipboard!' : 'Copy for Export'}</span>
             </button>
 
             {/* Export CSV button */}
@@ -575,6 +584,7 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
             { id: 'mobile-broken', label: `📱 Broken Mobile (${leads.filter(l => l.mobileFriendly === false).length})` },
             { id: 'approved-queue', label: `✉️ Approved Queue (${leads.filter(l => l.emailStatus === 'Approved').length})` },
             { id: 'today-follow-up', label: `📅 Today's Follow-Ups (${leads.filter(l => l.followUpDate === new Date().toISOString().split('T')[0]).length})` },
+            { id: 'duplicates', label: `🔁 Duplicates (${leads.filter(l => l.customTags?.some(t => String(t).includes('Duplicate of'))).length})` },
           ].map(chip => (
             <button
               key={chip.id}
@@ -746,15 +756,15 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
             </select>
           </div>
 
-          {/* Sync to Google Sheets */}
+          {/* Sync to Database */}
           <button
-            onClick={handleSyncToGoogleSheets}
-            disabled={isSyncingSheets}
+            onClick={handlePushSelected}
+            disabled={isSyncing}
             className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all shadow-sm disabled:opacity-50"
-            title="Sync selected leads to Google Sheets database via Web App"
+            title="Sync selected leads to database via Web App"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>{isSyncingSheets ? 'Syncing...' : 'Sync to Sheets'}</span>
+            <span>{isSyncing ? 'Syncing...' : 'Sync to Database'}</span>
           </button>
 
           <div className="h-5 w-px bg-slate-700" />

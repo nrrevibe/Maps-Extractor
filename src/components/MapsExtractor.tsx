@@ -22,14 +22,14 @@ import { RefreshCw, Download, FileSpreadsheet } from 'lucide-react';
 interface MapsExtractorProps {
   onAddLeads: (newLeads: Lead[]) => void;
   existingLeadIds: Set<string>;
-  onSyncFromSheets: () => Promise<void>;
+  onSyncFromLocalServer: () => Promise<void>;
   settings: AgencySettings;
 }
 
 export const MapsExtractor: React.FC<MapsExtractorProps> = ({
   onAddLeads,
   existingLeadIds,
-  onSyncFromSheets,
+  onSyncFromLocalServer,
   settings,
 }) => {
   const [isExtracting, setIsExtracting] = useState(false);
@@ -37,7 +37,7 @@ export const MapsExtractor: React.FC<MapsExtractorProps> = ({
   const handleSyncClick = async () => {
     setIsExtracting(true);
     try {
-      await onSyncFromSheets();
+      await onSyncFromLocalServer();
     } finally {
       setIsExtracting(false);
     }
@@ -77,28 +77,24 @@ export const MapsExtractor: React.FC<MapsExtractorProps> = ({
             </p>
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2.5">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-medium">Google Apps Script URL:</span>
-                <span className={`font-mono font-bold ${settings.googleAppsScriptUrl ? 'text-indigo-600' : 'text-amber-600'}`}>
-                  {settings.googleAppsScriptUrl ? 'Configured ✓' : 'Not Set ✗'}
+              <div className="flex items-center space-x-2 text-xs">
+                <span className="text-slate-500">Database Connection:</span>
+                <span className="font-mono font-bold text-emerald-600">
+                  Active ✓
                 </span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Target Sheet Name:</span>
-                <span className="text-slate-800 font-bold">{settings.sheetName || 'NR Rvibe Master DB'}</span>
-              </div>
             </div>
-          </div>
 
-          <div className="pt-6">
-            <button
-              onClick={onSyncFromSheets}
-              disabled={isExtracting}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-sm cursor-pointer"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Sync Live Leads from Google Sheets</span>
-            </button>
+            <div className="pt-4">
+              <button 
+                onClick={handleSyncClick}
+                disabled={isExtracting}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-sm disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isExtracting ? 'animate-spin' : ''}`} />
+                <span>Sync Live Leads from Database</span>
+              </button>
+            </div>
           </div>
         </div>
 
