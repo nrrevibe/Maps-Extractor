@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import nodemailer from 'nodemailer';
 
 const app = express();
+app.disable('etag');
 // ── CORS ──────────────────────────────────────────────────────────────────────
 app.use((req: any, res: any, next: any) => {
   res.header('Access-Control-Allow-Origin', '*');
