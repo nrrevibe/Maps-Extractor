@@ -100,7 +100,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
 
   handleSyncFromGoogleSheets: async () => {
     try {
-      const res = await fetch('/api/leads');
+      const res = await fetch('/api/leads?limit=5000');
       const data = await res.json();
       if (data.success && Array.isArray(data.leads)) {
         get().setLeads(data.leads);

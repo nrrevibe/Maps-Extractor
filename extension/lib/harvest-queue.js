@@ -102,7 +102,7 @@ const HarvestQueue = (() => {
 
     // LinkedIn Founder Search
     if (harvestLinkedin) {
-      const searchUrl = `https://html.duckduckgo.com/html/?q=site:linkedin.com/in+"${encodeURIComponent(lead.businessName)}"+"founder"+OR+"owner"`;
+      const searchUrl = `https://www.bing.com/search?q=site:linkedin.com/in+"${encodeURIComponent(lead.businessName)}"+"founder"+OR+"owner"`;
       let skip = false;
       if (skipCached) skip = await HarvestCache.isCached(searchUrl);
       if (!skip) {

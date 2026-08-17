@@ -20,6 +20,7 @@ import {
   Target
 } from 'lucide-react';
 import { Lead } from '../types';
+import { getMainCategory } from '../utils/categoryGrouping';
 
 interface AnalyticsDashboardProps {
   leads: Lead[];
@@ -60,10 +61,11 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ leads })
     { name: 'Won', count: leads.filter(l => l.leadStatus === 'Won').length },
   ];
 
-  // Top Niches
+  // Top Niches (Grouped by Main Category)
   const nicheCounts: Record<string, number> = {};
   leads.forEach(l => {
-    nicheCounts[l.category] = (nicheCounts[l.category] || 0) + 1;
+    const mainCategory = getMainCategory(l.category);
+    nicheCounts[mainCategory] = (nicheCounts[mainCategory] || 0) + 1;
   });
 
   const nicheData = Object.entries(nicheCounts).map(([category, count]) => ({

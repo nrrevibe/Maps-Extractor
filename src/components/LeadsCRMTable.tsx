@@ -44,6 +44,7 @@ interface LeadsCRMTableProps {
 }
 
 import { useLeadStore } from '../store/useLeadStore';
+import { groupCategories, getMainCategory } from '../utils/categoryGrouping';
 
 export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
   onSelectLeadForModal,
@@ -142,7 +143,14 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
         matchesChip = Boolean(lead.customTags && lead.customTags.some(t => String(t).includes('Duplicate of')));
       }
 
-      const matchesCategory = categoryFilter === 'All' || lead.category === categoryFilter;
+      let matchesCategory = true;
+      if (categoryFilter !== 'All') {
+        if (categoryFilter.startsWith('MAIN:')) {
+          matchesCategory = getMainCategory(lead.category) === categoryFilter.replace('MAIN:', '');
+        } else {
+          matchesCategory = lead.category === categoryFilter;
+        }
+      }
 
       let matchesOpportunity = true;
       if (opportunityFilter === 'Website') {
@@ -622,8 +630,13 @@ export const LeadsCRMTable: React.FC<LeadsCRMTableProps> = ({
               className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-indigo-500 font-medium"
             >
               <option value="All">All Categories</option>
-              {Array.from(new Set(leads.map(l => l.category))).filter(Boolean).sort().map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+              {Object.entries(groupCategories(Array.from(new Set(leads.map(l => l.category))).filter(Boolean))).sort().map(([mainCat, subCats]) => (
+                <optgroup key={mainCat} label={mainCat}>
+                  <option value={`MAIN:${mainCat}`} className="font-bold">📁 All {mainCat}</option>
+                  {subCats.sort().map(cat => (
+                    <option key={cat} value={cat}>↳ {cat}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
 

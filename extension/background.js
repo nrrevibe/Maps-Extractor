@@ -755,7 +755,7 @@ function killAllTabs() {
 }
 
 // ── Push enriched leads to Node API ───────────────────────────────────────────
-const API_BASE_URL = 'http://localhost:8081'; // Change to https://your-vercel-app.vercel.app for production
+const API_BASE_URL = 'https://maps-extractor.vercel.app';
 
 async function pushToNodeAPI(leads, settings) {
   const res = await fetch(`${API_BASE_URL}/api/leads`, {

@@ -44,7 +44,7 @@ export default function App() {
 
   const handleSyncFromLocalServer = async () => {
     try {
-      const res = await fetch(`/api/leads`);
+      const res = await fetch(`/api/leads?limit=5000`);
       
       // If we got any response, the local server is connected
       setIsConnected(true);

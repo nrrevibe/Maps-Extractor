@@ -247,6 +247,9 @@ document.getElementById('harvestPendingBtn').addEventListener('click', () => {
     
     switchTo('screen-pipeline');
     
+    // Set a flag so we don't prompt to harvest pending again for this batch
+    chrome.storage.local.set({ pending_harvested: true });
+
     // Force skipCached to false so we actually re-try these websites!
     const forceSettings = { ...settings, skipCached: false };
 
@@ -287,7 +290,7 @@ document.getElementById('exportCsvBtn').addEventListener('click', () => {
 // ── Summary: Extract More ───────────────────────────────────────────────────────
 document.getElementById('extractMoreBtn').addEventListener('click', () => {
   if (confirm('Start a new extraction? This will clear the current results from the summary.')) {
-    chrome.storage.local.remove(['harvest_stats', 'extraction_status', 'enriched_leads'], () => {
+    chrome.storage.local.remove(['harvest_stats', 'extraction_status', 'enriched_leads', 'pending_harvested'], () => {
       document.getElementById('harvestRunning').style.display = 'none';
       document.getElementById('collectorProgress').style.display = 'none';
       document.getElementById('summaryContent').style.display = 'none';
@@ -548,13 +551,14 @@ function showSummary(stats) {
   document.getElementById('livePreview').style.display = 'none';
 
   // Pull lead counts from storage for the boxes
-  chrome.storage.local.get('enriched_leads', res => {
+  chrome.storage.local.get(['enriched_leads', 'pending_harvested'], res => {
     const leads = res.enriched_leads || [];
     const qualified  = leads.filter(l => l.email && l.email !== 'N/A').length;
     const phoneOnly  = leads.filter(l => (!l.email || l.email === 'N/A') && l.phone && l.phone !== 'N/A').length;
     const lowScore   = leads.filter(l => (l.leadScore || 0) < 30).length;
 
-    const pending = leads.filter(l => l.websiteUrl && l.websiteUrl !== 'N/A' && (!l.email || l.email === 'N/A')).length;
+    let pending = leads.filter(l => l.websiteUrl && l.websiteUrl !== 'N/A' && (!l.email || l.email === 'N/A')).length;
+    if (res.pending_harvested) pending = 0; // Don't prompt again if already retried
 
     document.getElementById('sumQualified').textContent = qualified;
     document.getElementById('sumPhoneOnly').textContent = phoneOnly;
@@ -570,8 +574,8 @@ function showSummary(stats) {
     document.getElementById('pushAllBtn').textContent = `📤 Push All (${leads.length})`;
     
     const harvestBtn = document.getElementById('harvestPendingBtn');
-    harvestBtn.textContent = `▶ Harvest Pending Websites (${pending})`;
-    harvestBtn.disabled = pending === 0;
+    harvestBtn.textContent = res.pending_harvested ? '✅ All Pending Harvested' : `▶ Harvest Pending Websites (${pending})`;
+    harvestBtn.disabled = pending === 0 || res.pending_harvested;
   });
 }
 

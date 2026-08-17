@@ -11,16 +11,15 @@ try {
       title: ''
     };
 
-    // Find the first organic result
-    const results = Array.from(document.querySelectorAll('.result'));
+    // Find the first organic result (supports Bing, Google, DDG)
+    const results = Array.from(document.querySelectorAll('.b_algo, .result, .g'));
     for (const result of results) {
-      const a = result.querySelector('.result__url');
+      const a = result.querySelector('h2 a') || result.querySelector('.result__url') || result.querySelector('a');
       if (!a) continue;
       
       const href = a.href || '';
       if (href.includes('linkedin.com/in/')) {
-        const titleEl = result.querySelector('.result__title');
-        const titleText = titleEl ? titleEl.textContent.trim() : '';
+        const titleText = a.textContent ? a.textContent.trim() : '';
         
         // Typical format: "John Doe - Founder - Company | LinkedIn"
         const cleanName = titleText.split('-')[0].split('|')[0].trim();
