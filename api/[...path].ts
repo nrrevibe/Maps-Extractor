@@ -1,9 +1,9 @@
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import nodemailer from 'nodemailer';
-import dbConnect from '../src/lib/db';
-import { Lead } from '../src/models/Lead';
-import { Settings } from '../src/models/Settings';
+import dbConnect from '../src/lib/db.js';
+import { Lead } from '../src/models/Lead.js';
+import { Settings } from '../src/models/Settings.js';
 
 const app = express();
 app.disable('etag');
