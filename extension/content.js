@@ -68,18 +68,26 @@ function extractSocialLinks(scope) {
 
   // Fallback: search raw HTML for "Web results" which might hide hrefs in javascript or data attributes
   try {
-    const html = (scope.body ? scope.body.innerHTML : scope.innerHTML) || '';
+    let html = (scope.body ? scope.body.innerHTML : scope.innerHTML) || '';
+    const iframes = scope.querySelectorAll('iframe');
+    for (let i = 0; i < iframes.length; i++) {
+      try {
+        const doc = iframes[i].contentDocument || iframes[i].contentWindow?.document;
+        if (doc && doc.body) html += ' ' + doc.body.innerHTML;
+      } catch(e) {}
+    }
+
     if (!instagram) { 
       const m = html.match(/https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9_.-]+/); 
-      if (m && !m[0].includes('/explore') && !m[0].includes('/p/')) instagram = m[0]; 
+      if (m && !m[0].includes('/explore') && !m[0].includes('/p/') && !m[0].toLowerCase().includes('googlemaps')) instagram = m[0]; 
     }
     if (!facebook) { 
       const m = html.match(/https?:\/\/(www\.)?facebook\.com\/[a-zA-Z0-9_.-]+/); 
-      if (m && !m[0].includes('/sharer') && !m[0].includes('/pages/create')) facebook = m[0]; 
+      if (m && !m[0].includes('/sharer') && !m[0].includes('/pages/create') && !m[0].toLowerCase().includes('googlemaps')) facebook = m[0]; 
     }
     if (!twitter) { 
       const m = html.match(/https?:\/\/(www\.)?(twitter|x)\.com\/[a-zA-Z0-9_.-]+/); 
-      if (m && !m[0].includes('/intent/')) twitter = m[0]; 
+      if (m && !m[0].includes('/intent/') && !m[0].toLowerCase().includes('googlemaps')) twitter = m[0]; 
     }
     if (!linkedin) { 
       const m = html.match(/https?:\/\/(www\.)?linkedin\.com\/(in|company)\/[a-zA-Z0-9_.-]+/); 
@@ -411,10 +419,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }
 
           // Hours
-          hours = extractHours(document);
+          hours = extractHours(detailPanel || document);
 
           // Social links
-          ({ instagram, facebook, twitter, linkedin, youtube, whatsapp } = extractSocialLinks(document));
+          ({ instagram, facebook, twitter, linkedin, youtube, whatsapp } = extractSocialLinks(detailPanel || document));
 
           // Category from panel
           const pCatEl = document.querySelector('[role="main"] button.DkEaL');

@@ -92,6 +92,7 @@ export interface Lead {
   customWebsiteIssue?: string;
   customSocialIssue?: string;
   customService?: string;
+  duplicateOfId?: string;
 }
 
 export interface EmailTemplate {

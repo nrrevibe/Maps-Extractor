@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Lead } from '../types';
 import { getMainCategory } from '../utils/categoryGrouping';
+import { CRMAnalytics } from './dashboard/CRMAnalytics';
 
 interface AnalyticsDashboardProps {
   leads: Lead[];
@@ -75,6 +76,9 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ leads })
 
   return (
     <div className="space-y-6">
+      {/* New CRM Analytics Section (Glassmorphism & Framer Motion) */}
+      <CRMAnalytics leads={leads} />
+
       {/* Metrics Banner */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-1">

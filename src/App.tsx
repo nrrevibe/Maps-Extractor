@@ -76,6 +76,7 @@ export default function App() {
               );
               if (originalMatch) {
                 nl.customTags = [...(nl.customTags || []), `Duplicate of: ${originalMatch.businessName}`];
+                nl.duplicateOfId = originalMatch.id;
               }
               combined.unshift(nl);
             }

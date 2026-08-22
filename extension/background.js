@@ -93,6 +93,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ success: true });
       return true;
 
+    case 'OPEN_WHATSAPP_TAB':
+      openWhatsAppTab(msg.url);
+      sendResponse({ success: true });
+      return true;
+
     case 'COLLECTOR_FINISHED':
       _state.collectorFinished = true;
       sendResponse({ success: true });
@@ -211,9 +216,22 @@ async function runWorker(profile, settings) {
 
     broadcastProgress(task, null, leadName, 'starting');
 
-    // Execute the tab harvest
+    // Execute the harvest
     const startMs = Date.now();
-    const result = await harvestTab(task, profile, settings);
+    let result = null;
+
+    if (settings.headlessFetching && (task.type === 'website' || task.type === 'subpage')) {
+      await setupOffscreenDocument();
+      result = await harvestHeadless(task, profile, settings);
+      
+      // Fallback to tab harvesting if headless fetch fails or is blocked
+      if (!result || !result.success) {
+        await HarvestStats.appendLog(`⚠ Headless blocked. Falling back to tab...`, 'scraping', leadName);
+        result = await harvestTab(task, profile, settings);
+      }
+    } else {
+      result = await harvestTab(task, profile, settings);
+    }
     if (!_state.isRunning) break; // Exit immediately if stopped
 
     const elapsed = Date.now() - startMs;
@@ -270,6 +288,79 @@ async function runWorker(profile, settings) {
     // Cooldown
     const cooldown = randBetween(profile.cooldownMin, profile.cooldownMax);
     await sleep(cooldown);
+  }
+}
+
+// ── Headless Fetching ────────────────────────────────────────────────────────
+let creatingOffscreen;
+async function setupOffscreenDocument() {
+  const path = 'offscreen.html';
+  if (await chrome.offscreen.hasDocument()) return;
+  if (creatingOffscreen) {
+    await creatingOffscreen;
+    return;
+  }
+  creatingOffscreen = chrome.offscreen.createDocument({
+    url: path,
+    reasons: ['DOM_PARSER'],
+    justification: 'Parse website HTML securely without opening tabs',
+  });
+  await creatingOffscreen;
+  creatingOffscreen = null;
+}
+
+async function harvestHeadless(task, profile, settings) {
+  let url = task.url;
+  if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+  if (!url || url === 'https://') return { success: false, error: 'INVALID_URL' };
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), (settings.pageLoadTimeout || 20) * 1000);
+    
+    // Attempt fetch
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      }
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return { success: false, error: `FETCH_FAILED_${response.status}` };
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType && !contentType.includes('text/html')) {
+      return { success: false, error: 'NOT_HTML' };
+    }
+
+    const html = await response.text();
+    
+    // Cloudflare / Bot Protection checks
+    if (html.includes('Cloudflare') && (html.includes('Enable JavaScript and cookies') || html.includes('Just a moment...'))) {
+      return { success: false, error: 'CLOUDFLARE_BLOCKED' };
+    }
+
+    // Send to offscreen parser
+    const data = await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      action: 'PARSE_WEBSITE',
+      html,
+      url: response.url || url
+    });
+
+    if (data && data.success) {
+      return data;
+    } else {
+      return { success: false, error: data ? data.error : 'OFFSCREEN_FAIL' };
+    }
+  } catch (err) {
+    return { success: false, error: err.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR' };
   }
 }
 
@@ -787,3 +878,27 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[NR Rvibe] Extension installed. Smart Tab Harvester ready.');
 });
+
+// ── WhatsApp Tab Handling ──────────────────────────────────────────────────────
+function openWhatsAppTab(url) {
+  chrome.tabs.query({ url: "*://web.whatsapp.com/*" }, (tabs) => {
+    if (tabs.length > 0) {
+      const tab = tabs[0];
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (targetUrl) => {
+          let a = document.createElement('a');
+          a.href = targetUrl;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        },
+        args: [url]
+      });
+      chrome.windows.update(tab.windowId, { focused: true });
+      chrome.tabs.update(tab.id, { active: true });
+    } else {
+      chrome.tabs.create({ url: url, active: true });
+    }
+  });
+}

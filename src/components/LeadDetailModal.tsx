@@ -20,8 +20,14 @@ import {
   FileText,
   MessageCircle,
   Instagram,
+  Facebook,
+  Twitter,
+  Linkedin,
+  Youtube,
+  Music,
   Edit3
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { Lead, AgencySettings } from '../types';
 import { renderEmailTemplate, getAvailableTemplates, getAvailableWhatsAppTemplates, getTemplateVariables } from '../utils/templates';
 
@@ -163,15 +169,23 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
   const handleWhatsAppDM = () => {
     if (!lead.phone || lead.phone === 'N/A') return;
-    const phone = String(lead.phone).replace(/[^\d]/g, '');
+    let phone = String(lead.phone).replace(/[^\d]/g, '');
+    if (phone.length === 10) {
+      phone = `91${phone}`;
+    }
     const text = encodeURIComponent(renderedEmail.body);
     const url = `https://web.whatsapp.com/send?phone=${phone}&text=${text}`;
+
+    // Open blank window synchronously to bypass popup blockers
+    const fallbackWindow = window.open('about:blank', 'whatsapp_dm');
 
     let ackReceived = false;
     const ackListener = (event: MessageEvent) => {
       if (event.data && event.data.type === 'WHATSAPP_TAB_ACK') {
         ackReceived = true;
         window.removeEventListener('message', ackListener);
+        // Extension handled it, close our fallback window
+        if (fallbackWindow) fallbackWindow.close();
       }
     };
     window.addEventListener('message', ackListener);
@@ -179,11 +193,15 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     // Tell the Chrome extension to reuse the WhatsApp tab
     window.postMessage({ type: 'OPEN_WHATSAPP_TAB', url }, '*');
 
-    // Fallback: If extension doesn't respond in 300ms, open manually
+    // Fallback: If extension doesn't respond in 800ms, open manually
     setTimeout(() => {
       if (!ackReceived) {
         window.removeEventListener('message', ackListener);
-        window.open(url, 'whatsapp_dm');
+        if (fallbackWindow) {
+          fallbackWindow.location.href = url;
+        } else {
+          window.open(url, 'whatsapp_dm');
+        }
       }
     }, 800);
 
@@ -206,6 +224,33 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     setEditedNotes(prev => `${prev}${noteAppend}`);
   };
 
+  const isValidUrl = (url?: string) => !!url && url !== 'N/A' && url.trim() !== '';
+
+  const handleOpenAllSocials = () => {
+    const urls: string[] = [];
+    if (isValidUrl(lead.websiteUrl)) urls.push(lead.websiteUrl!);
+    if (isValidUrl(lead.instagramUrl)) urls.push(lead.instagramUrl!);
+    if (isValidUrl(lead.facebookUrl)) urls.push(lead.facebookUrl!);
+    if (isValidUrl(lead.twitterUrl)) urls.push(lead.twitterUrl!);
+    if (isValidUrl(lead.linkedinUrl)) urls.push(lead.linkedinUrl!);
+    if (isValidUrl(lead.youtubeUrl)) urls.push(lead.youtubeUrl!);
+    if (isValidUrl(lead.tiktokUrl)) urls.push(lead.tiktokUrl!);
+
+    urls.forEach(url => window.open(url, '_blank'));
+
+    // Log interaction
+    const noteAppend = `\n\n[OUTREACH LOG] Opened All Socials on ${new Date().toLocaleString()}`;
+    onUpdateLead({ ...lead, notes: `${editedNotes}${noteAppend}` });
+    setEditedNotes(prev => `${prev}${noteAppend}`);
+  };
+
+  const handleOpenSocial = (url: string, platform: string) => {
+    window.open(url, '_blank');
+    const noteAppend = `\n\n[OUTREACH LOG] Opened ${platform} Profile on ${new Date().toLocaleString()}`;
+    onUpdateLead({ ...lead, notes: `${editedNotes}${noteAppend}` });
+    setEditedNotes(prev => `${prev}${noteAppend}`);
+  };
+
   const handleApproveEmail = () => {
     onUpdateLead({
       ...lead,
@@ -219,10 +264,20 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-xl text-slate-800">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+    >
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="bg-white/95 backdrop-blur-xl border border-slate-200/50 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl text-slate-800"
+      >
         {/* Modal Header */}
-        <div className="p-6 border-b border-slate-100 flex items-start justify-between sticky top-0 bg-white z-10">
+        <div className="p-6 border-b border-slate-100/50 flex items-start justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10">
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-sm">
               {(lead.businessName || 'NA').slice(0, 2).toUpperCase()}
@@ -727,7 +782,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     </button>
                   )}
 
-                  {lead.instagramUrl && (
+                  {isValidUrl(lead.instagramUrl) && (
                     <button
                       onClick={handleInstagramDM}
                       className="bg-pink-50 hover:bg-pink-100 border border-pink-200 text-pink-700 px-3 py-2 rounded-lg font-bold flex items-center space-x-1.5 transition-colors shadow-sm"
@@ -735,6 +790,83 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                     >
                       <Instagram className="w-3.5 h-3.5" />
                       <span>IG DM</span>
+                    </button>
+                  )}
+
+                  {isValidUrl(lead.facebookUrl) && (
+                    <button
+                      onClick={() => handleOpenSocial(lead.facebookUrl!, 'Facebook')}
+                      className="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-3 py-2 rounded-lg font-bold flex items-center space-x-1.5 transition-colors shadow-sm"
+                      title="Open Facebook Profile"
+                    >
+                      <Facebook className="w-3.5 h-3.5" />
+                      <span>Facebook</span>
+                    </button>
+                  )}
+
+                  {isValidUrl(lead.twitterUrl) && (
+                    <button
+                      onClick={() => handleOpenSocial(lead.twitterUrl!, 'Twitter')}
+                      className="bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 px-3 py-2 rounded-lg font-bold flex items-center space-x-1.5 transition-colors shadow-sm"
+                      title="Open Twitter Profile"
+                    >
+                      <Twitter className="w-3.5 h-3.5" />
+                      <span>Twitter</span>
+                    </button>
+                  )}
+
+                  {isValidUrl(lead.linkedinUrl) && (
+                    <button
+                      onClick={() => handleOpenSocial(lead.linkedinUrl!, 'LinkedIn')}
+                      className="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 px-3 py-2 rounded-lg font-bold flex items-center space-x-1.5 transition-colors shadow-sm"
+                      title="Open LinkedIn Profile"
+                    >
+                      <Linkedin className="w-3.5 h-3.5" />
+                      <span>LinkedIn</span>
+                    </button>
+                  )}
+
+                  {isValidUrl(lead.youtubeUrl) && (
+                    <button
+                      onClick={() => handleOpenSocial(lead.youtubeUrl!, 'YouTube')}
+                      className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 px-3 py-2 rounded-lg font-bold flex items-center space-x-1.5 transition-colors shadow-sm"
+                      title="Open YouTube Profile"
+                    >
+                      <Youtube className="w-3.5 h-3.5" />
+                      <span>YouTube</span>
+                    </button>
+                  )}
+
+                  {isValidUrl(lead.tiktokUrl) && (
+                    <button
+                      onClick={() => handleOpenSocial(lead.tiktokUrl!, 'TikTok')}
+                      className="bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-800 px-3 py-2 rounded-lg font-bold flex items-center space-x-1.5 transition-colors shadow-sm"
+                      title="Open TikTok Profile"
+                    >
+                      <Music className="w-3.5 h-3.5" />
+                      <span>TikTok</span>
+                    </button>
+                  )}
+
+                  {isValidUrl(lead.websiteUrl) && (
+                    <button
+                      onClick={() => handleOpenSocial(lead.websiteUrl!, 'Website')}
+                      className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-3 py-2 rounded-lg font-bold flex items-center space-x-1.5 transition-colors shadow-sm"
+                      title="Open Website"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Website</span>
+                    </button>
+                  )}
+
+                  {(isValidUrl(lead.websiteUrl) || isValidUrl(lead.instagramUrl) || isValidUrl(lead.facebookUrl) || isValidUrl(lead.twitterUrl) || isValidUrl(lead.linkedinUrl) || isValidUrl(lead.youtubeUrl) || isValidUrl(lead.tiktokUrl)) && (
+                    <button
+                      onClick={handleOpenAllSocials}
+                      className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 px-3 py-2 rounded-lg font-bold flex items-center space-x-1.5 transition-colors shadow-sm"
+                      title="Opens all available social profiles and website in new tabs"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Open All Socials</span>
                     </button>
                   )}
                 </div>
@@ -796,7 +928,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             Save Changes
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

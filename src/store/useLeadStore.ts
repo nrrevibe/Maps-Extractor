@@ -126,6 +126,7 @@ export const useLeadStore = create<LeadState>((set, get) => ({
       );
       if (originalMatch) {
         nl.customTags = [...(nl.customTags || []), `Duplicate of: ${originalMatch.businessName}`];
+        nl.duplicateOfId = originalMatch.id;
       }
       return nl;
     }).filter(nl => !leads.some(el => el.id === nl.id));

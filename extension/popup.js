@@ -50,6 +50,7 @@ const DEFAULTS = {
   stopOnInstagramLoginWall: true,
   retryFailed: false,
   // Smart scraping
+  headlessFetching: true,
   scrapeSubPages: true,
   crossDiscovery: true,
   // Dedup
@@ -77,6 +78,7 @@ function loadSettings() {
     const radios = document.querySelectorAll('input[name="speedMode"]');
     radios.forEach(r => { r.checked = (r.value === s.speedMode); });
     // Smart scraping
+    document.getElementById('headlessFetching').checked = s.headlessFetching;
     document.getElementById('scrapeSubPages').checked = s.scrapeSubPages;
     document.getElementById('crossDiscovery').checked = s.crossDiscovery;
     // Dedup
@@ -103,6 +105,7 @@ function getSettings() {
     stopOnInstagramLoginWall: document.getElementById('stopOnInstagramLoginWall').checked,
     retryFailed: document.getElementById('retryFailed').checked,
     // Smart scraping
+    headlessFetching: document.getElementById('headlessFetching').checked,
     scrapeSubPages: document.getElementById('scrapeSubPages').checked,
     crossDiscovery: document.getElementById('crossDiscovery').checked,
     // Dedup

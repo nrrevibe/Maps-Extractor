@@ -343,10 +343,20 @@
   function isValidEmail(email) {
     if (!email) return false;
     const lower = email.toLowerCase();
-    if (/\.(png|jpg|gif|svg|jpeg|webp|pdf|zip|mp4|woff|ttf|css|js)$/i.test(lower)) return false;
+    if (/\.(png|jpg|gif|svg|jpeg|webp|pdf|zip|mp4|woff|ttf|css|js|html|php)$/i.test(lower)) return false;
     if (lower.includes('example.com') || lower.includes('yourdomain') || lower.includes('domain.com')) return false;
     if (lower.includes('sentry.') || lower.includes('noreply') || lower.includes('no-reply')) return false;
     if (lower.length > 100 || lower.length < 5) return false;
+    
+    // Prevent sentence boundaries from being extracted as TLDs by the obfuscated regex
+    // e.g., "experience @ azure. The" -> experience@azure.the
+    const tldMatch = lower.match(/\.([a-z]+)$/);
+    if (tldMatch) {
+      const tld = tldMatch[1];
+      const invalidTlds = ['the', 'this', 'that', 'and', 'for', 'your', 'from', 'with'];
+      if (invalidTlds.includes(tld)) return false;
+    }
+
     return /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/.test(lower);
   }
 
